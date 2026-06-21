@@ -5,12 +5,28 @@ let {
 	room,
 	members,
 	messages,
+	myId,
+	myPower,
 	onClose,
-}: { room: Room; members: Member[]; messages: Message[]; onClose: () => void } =
-	$props();
+	onMessage,
+	onKick,
+	onBan,
+}: {
+	room: Room;
+	members: Member[];
+	messages: Message[];
+	myId: string;
+	myPower: number;
+	onClose: () => void;
+	onMessage: (userId: string) => void;
+	onKick: (userId: string) => void;
+	onBan: (userId: string) => void;
+} = $props();
 
 const online = $derived(members.filter((m) => m.online));
 const offline = $derived(members.filter((m) => !m.online));
+const canModerate = (m: Member) =>
+	m.id !== myId && myPower >= 50 && myPower > m.power;
 const files = $derived(
 	messages.filter((m) => m.kind === "image" || m.kind === "file"),
 );
@@ -40,25 +56,30 @@ let tab = $state<"members" | "files" | "pinned">("members");
 		<button class:on={tab === "pinned"} onclick={() => (tab = "pinned")}>Pinned</button>
 	</div>
 
+	{#snippet memberRow(m: Member)}
+		<div class="m" class:off={!m.online}>
+			<span class="ma" style="--c:{m.color}">{m.name[0]?.toUpperCase() ?? "?"}{#if m.online}<i></i>{/if}</span>
+			<span class="mn">{m.name}</span>
+			{#if m.role !== "Member"}<span class="role">{m.role}</span>{/if}
+			{#if m.id !== myId}
+				<span class="macts">
+					<button class="mact" title="Message" aria-label="Message {m.name}" onclick={() => onMessage(m.id)}>DM</button>
+					{#if canModerate(m)}
+						<button class="mact" title="Kick" aria-label="Kick {m.name}" onclick={() => confirm(`Kick ${m.name}?`) && onKick(m.id)}>Kick</button>
+						<button class="mact danger" title="Ban" aria-label="Ban {m.name}" onclick={() => confirm(`Ban ${m.name}?`) && onBan(m.id)}>Ban</button>
+					{/if}
+				</span>
+			{/if}
+		</div>
+	{/snippet}
+
 	{#if tab === "members"}
 		<div class="members">
 			<h4>Online — {online.length}</h4>
-			{#each online as m (m.name)}
-				<div class="m">
-					<span class="ma" style="--c:{m.color}">{m.name[0]?.toUpperCase() ?? "?"}<i></i></span>
-					<span class="mn">{m.name}</span>
-					{#if m.role !== "Member"}<span class="role">{m.role}</span>{/if}
-				</div>
-			{/each}
+			{#each online as m (m.id)}{@render memberRow(m)}{/each}
 			{#if offline.length}
 				<h4>Offline — {offline.length}</h4>
-				{#each offline as m (m.name)}
-					<div class="m off">
-						<span class="ma" style="--c:{m.color}">{m.name[0]?.toUpperCase() ?? "?"}</span>
-						<span class="mn">{m.name}</span>
-						{#if m.role !== "Member"}<span class="role">{m.role}</span>{/if}
-					</div>
-				{/each}
+				{#each offline as m (m.id)}{@render memberRow(m)}{/each}
 			{/if}
 		</div>
 	{:else if tab === "files"}
@@ -298,5 +319,31 @@ let tab = $state<"members" | "files" | "pinned">("members");
 	background: color-mix(in srgb, var(--accent-2) 16%, transparent);
 	border-radius: 6px;
 	padding: 1px 6px;
+}
+.macts {
+	display: none;
+	gap: 4px;
+	margin-left: auto;
+}
+.m:hover .macts {
+	display: flex;
+}
+.mact {
+	border: 1px solid var(--border);
+	background: var(--panel);
+	color: var(--text-dim);
+	font-size: 11px;
+	font-weight: 600;
+	padding: 2px 7px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+.mact:hover {
+	border-color: var(--accent);
+	color: var(--text);
+}
+.mact.danger:hover {
+	border-color: var(--danger);
+	color: var(--danger);
 }
 </style>

@@ -47,9 +47,11 @@ export type Message = {
 };
 
 export type Member = {
+	id: string;
 	name: string;
 	color: string;
 	role: "Admin" | "Mod" | "Member";
+	power: number;
 	online: boolean;
 };
 

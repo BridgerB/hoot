@@ -188,9 +188,11 @@ export function roomMembers(
 	const room = client.getRoom(roomId);
 	if (!room) return [];
 	return room.getJoinedMembers().map((m) => ({
+		id: m.userId,
 		name: nameOf(room, m.userId),
 		color: colorFor(m.userId),
 		role: m.powerLevel >= 100 ? "Admin" : m.powerLevel >= 50 ? "Mod" : "Member",
+		power: m.powerLevel,
 		online: m.user?.presence === "online" || m.userId === myId,
 	}));
 }

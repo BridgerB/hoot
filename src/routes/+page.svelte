@@ -107,6 +107,13 @@ const typing = $derived.by(() => {
 	const c = getClient();
 	return room && c ? roomTyping(c, room.id, mx.userId) : [];
 });
+const myPower = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return room && c
+		? (c.getRoom(room.id)?.getMember(mx.userId)?.powerLevel ?? 0)
+		: 0;
+});
 const hasOlder = $derived.by(() => {
 	void mx.rev;
 	const tl = room && getClient()?.getRoom(room.id)?.getLiveTimeline();
@@ -170,6 +177,24 @@ async function uploadFile(file: File): Promise<string> {
 	if (!c) return "";
 	const res = await c.uploadContent(file, { name: file.name, type: file.type });
 	return res.content_uri;
+}
+async function startDm(userId: string) {
+	const c = getClient();
+	if (!c) return;
+	const { room_id } = await c.createRoom({
+		is_direct: true,
+		invite: [userId],
+		preset: "trusted_private_chat" as never,
+	});
+	openRoom(room_id);
+}
+function kickUser(userId: string) {
+	const c = getClient();
+	if (c && room) c.kick(room.id, userId);
+}
+function banUser(userId: string) {
+	const c = getClient();
+	if (c && room) c.ban(room.id, userId);
 }
 function sendTyping(t: boolean) {
 	const c = getClient();
@@ -288,7 +313,17 @@ onMount(() => {
 		/>
 
 		{#if rightOpen && room && !mobile}
-			<RightPanel {room} {members} {messages} onClose={() => (rightOpen = false)} />
+			<RightPanel
+				{room}
+				{members}
+				{messages}
+				myId={mx.userId}
+				{myPower}
+				onClose={() => (rightOpen = false)}
+				onMessage={startDm}
+				onKick={kickUser}
+				onBan={banUser}
+			/>
 		{/if}
 	</div>
 
