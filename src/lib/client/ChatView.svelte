@@ -257,6 +257,17 @@ function toggleSearch() {
 							{/if}
 							{#if m.kind === "image" && m.url}
 								<a class="imgbubble" href={m.url} target="_blank" rel="noreferrer"><img src={m.url} alt={m.name ?? "image"} loading="lazy" /></a>
+							{:else if m.kind === "audio" && m.url}
+								<div class="audiobubble">
+									<!-- svelte-ignore a11y_media_has_caption -->
+									<audio controls src={m.url}></audio>
+									{#if m.duration}<span class="adur">{Math.round(m.duration / 1000)}s</span>{/if}
+								</div>
+							{:else if m.kind === "location" && m.lat != null && m.lng != null}
+								<a class="locbubble" href="https://www.openstreetmap.org/?mlat={m.lat}&mlon={m.lng}#map=16/{m.lat}/{m.lng}" target="_blank" rel="noreferrer">
+									<img src="https://staticmap.openstreetmap.de/staticmap.php?center={m.lat},{m.lng}&zoom=15&size=240x120&markers={m.lat},{m.lng},red-pushpin" alt="map" loading="lazy" />
+									<span>📍 {m.lat.toFixed(4)}, {m.lng.toFixed(4)}</span>
+								</a>
 							{:else if m.kind === "file" && m.url}
 								<a class="filebubble" href={m.url} target="_blank" rel="noreferrer" download={m.name}>
 									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>

@@ -32,6 +32,16 @@ function stripReplyFallback(body: string): string {
 	const i = body.indexOf("\n\n");
 	return i >= 0 ? body.slice(i + 2) : body;
 }
+function parseGeo(c: Content): { lat: number; lng: number } | undefined {
+	const uri = c.geo_uri || c["org.matrix.msc3488.location"]?.uri;
+	if (typeof uri !== "string") return undefined;
+	const parts = uri.replace(/^geo:/, "").split(";")[0].split(",");
+	const lat = Number(parts[0]);
+	const lng = Number(parts[1]);
+	return Number.isFinite(lat) && Number.isFinite(lng)
+		? { lat, lng }
+		: undefined;
+}
 
 // --- display-name resolution (strix omits displayname from member events) ---
 const nameCache = new Map<string, string>();
@@ -143,12 +153,22 @@ function mapEvent(
 			name: String(c.body ?? "image"),
 		};
 	}
-	if (
-		(c.msgtype === "m.file" ||
-			c.msgtype === "m.video" ||
-			c.msgtype === "m.audio") &&
-		c.url
-	) {
+	if (c.msgtype === "m.location") {
+		const g = parseGeo(c);
+		return { ...base, kind: "location", lat: g?.lat, lng: g?.lng };
+	}
+	if (c.msgtype === "m.audio" && c.url) {
+		const audio = c["org.matrix.msc1767.audio"] ?? {};
+		return {
+			...base,
+			kind: "audio",
+			url: client.mxcUrlToHttp(c.url) ?? undefined,
+			name: String(c.body ?? "audio"),
+			duration: Number(c.info?.duration ?? audio.duration) || undefined,
+			waveform: Array.isArray(audio.waveform) ? audio.waveform : undefined,
+		};
+	}
+	if ((c.msgtype === "m.file" || c.msgtype === "m.video") && c.url) {
 		return {
 			...base,
 			kind: "file",

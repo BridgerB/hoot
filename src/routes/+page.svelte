@@ -141,7 +141,14 @@ function send(content: Record<string, unknown>) {
 }
 function react(id: string, key: string) {
 	const c = getClient();
-	if (c && room)
+	if (!c || !room) return;
+	// toggle: if I already reacted with this key, redact it; otherwise add it
+	const existing = messages
+		.find((m) => m.id === id)
+		?.reactions?.find((r) => r.key === key);
+	if (existing?.mine && existing.myReactionId) {
+		c.redactEvent(room.id, existing.myReactionId);
+	} else {
 		// biome-ignore lint/suspicious/noExplicitAny: SDK event content
 		c.sendEvent(
 			room.id,
@@ -151,6 +158,7 @@ function react(id: string, key: string) {
 				// biome-ignore lint/suspicious/noExplicitAny: SDK event content
 			} as any,
 		);
+	}
 }
 function editMsg(id: string, text: string) {
 	const c = getClient();

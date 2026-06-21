@@ -36,14 +36,30 @@ export type Message = {
 	ts: string;
 	tsMs: number;
 	me?: boolean;
-	kind?: "text" | "image" | "file";
-	url?: string; // resolved /api/media proxy url for image/file
+	kind?: "text" | "image" | "file" | "audio" | "location" | "poll";
+	url?: string; // resolved media url for image/file/audio
 	name?: string; // file name
 	w?: number;
 	h?: number;
 	reactions?: Reaction[];
 	replyToId?: string;
 	edited?: boolean;
+	// audio (voice message)
+	duration?: number; // ms
+	waveform?: number[];
+	// location
+	lat?: number;
+	lng?: number;
+	// poll
+	poll?: PollData;
+};
+
+export type PollData = {
+	id: string; // poll start event id
+	question: string;
+	ended: boolean;
+	options: { id: string; text: string; votes: number; mine: boolean }[];
+	totalVotes: number;
 };
 
 export type Member = {
