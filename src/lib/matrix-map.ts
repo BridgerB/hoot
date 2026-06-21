@@ -302,7 +302,8 @@ export function roomMessages(
 		const readId = room.getEventReadUpTo(mem.userId);
 		const msg = readId ? byId.get(readId) : undefined;
 		if (msg) {
-			(msg.readBy ??= []).push({
+			msg.readBy ??= [];
+			msg.readBy.push({
 				id: mem.userId,
 				name: nameOf(room, mem.userId),
 				color: colorFor(mem.userId),
