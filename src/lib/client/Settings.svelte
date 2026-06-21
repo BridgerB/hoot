@@ -1,5 +1,14 @@
 <script lang="ts">
 import { untrack } from "svelte";
+import {
+	accounts,
+	activeProfile,
+	addAccount,
+	removeAccount,
+	switchTo,
+} from "$lib/accounts.svelte";
+
+const current = activeProfile();
 
 let {
 	me,
@@ -159,6 +168,26 @@ async function unlockEnc() {
 					{/if}
 				{/if}
 				{#if encError}<p class="err">{encError}</p>{/if}
+			</section>
+
+			<section class="enc">
+				<div class="enc-head"><span class="cap">Accounts</span></div>
+				{#each accounts.list as acct (acct.profile)}
+					<div class="acctrow" class:active={acct.profile === current}>
+						<span class="acctav" style="--c:{me.color}">{(acct.displayName ?? acct.userId)[1]?.toUpperCase() ?? "?"}</span>
+						<div class="acctmeta">
+							<strong>{acct.displayName ?? acct.userId.replace(/^@/, "").split(":")[0]}</strong>
+							<span class="acctid">{acct.userId}</span>
+						</div>
+						{#if acct.profile === current}
+							<span class="badge ok">Active</span>
+						{:else}
+							<button class="mini" onclick={() => switchTo(acct.profile)}>Switch</button>
+							<button class="mini" onclick={() => removeAccount(acct.profile)} title="Remove from list" aria-label="Remove">✕</button>
+						{/if}
+					</div>
+				{/each}
+				<button class="link" onclick={addAccount}>+ Add account</button>
 			</section>
 
 			<div class="notif">
@@ -453,5 +482,42 @@ header h2 {
 	border: 1px solid var(--border);
 	border-radius: 12px;
 	background: var(--surface);
+}
+.acctrow {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 7px 4px;
+}
+.acctrow.active {
+	opacity: 1;
+}
+.acctav {
+	width: 30px;
+	height: 30px;
+	flex: none;
+	border-radius: 50%;
+	display: grid;
+	place-items: center;
+	font-weight: 700;
+	font-size: 12px;
+	color: #0b0c10;
+	background: var(--c);
+}
+.acctmeta {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+.acctmeta strong {
+	font-size: 13.5px;
+}
+.acctid {
+	font-size: 11px;
+	color: var(--muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 </style>

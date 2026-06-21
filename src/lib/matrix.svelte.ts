@@ -13,6 +13,7 @@ import {
 	SyncState,
 } from "matrix-js-sdk";
 import { decodeRecoveryKey } from "matrix-js-sdk/lib/crypto-api/recovery-key";
+import { upsertAccount } from "./accounts.svelte";
 import { callController } from "./call.svelte";
 import { resolveNames } from "./matrix-map";
 
@@ -159,7 +160,9 @@ async function start(session: Session): Promise<void> {
 		RoomEvent.Timeline,
 		(event, room, toStartOfTimeline, _removed, data) => {
 			mx.rev++;
-			// desktop notification for live incoming messages while unfocused
+			// desktop notification for live incoming messages while unfocused.
+			// Like Element/Cinny on web, this is foreground-only (no sygnal/push
+			// gateway), but it respects the account's push rules.
 			if (toStartOfTimeline || !data?.liveEvent) return;
 			if (
 				event.getType() !== "m.room.message" ||
@@ -172,15 +175,21 @@ async function start(session: Session): Promise<void> {
 				!document.hidden
 			)
 				return;
+			// honour the user's push rules (DMs, mentions, keywords, room overrides)
+			if (!client?.getPushActionsForEvent(event)?.notify) return;
 			const sender =
 				room?.getMember(event.getSender() ?? "")?.name ??
 				event.getSender() ??
 				"";
 			const title = room?.name ? `${sender} · ${room.name}` : sender;
-			new Notification(title, {
+			const n = new Notification(title, {
 				body: String(event.getContent().body ?? "New message").slice(0, 140),
 				tag: room?.roomId,
 			});
+			n.onclick = () => {
+				window.focus();
+				n.close();
+			};
 		},
 	);
 	client.on(RoomEvent.Receipt, () => mx.rev++);
@@ -193,6 +202,12 @@ async function start(session: Session): Promise<void> {
 
 	await client.startClient({ initialSyncLimit: 30 });
 	callController.init(client);
+	upsertAccount({
+		profile: PROFILE,
+		userId: session.userId,
+		homeserver: session.baseUrl,
+		displayName: client.getUser(session.userId)?.displayName ?? undefined,
+	});
 }
 
 // strix omits displaynames from member events; fetch profiles so DMs and

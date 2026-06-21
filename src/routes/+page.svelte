@@ -37,7 +37,7 @@ import {
 let booted = $state(false);
 onMount(async () => {
 	if (!(await restore())) {
-		await goto("/login");
+		await goto(`/login${location.search}`);
 		return;
 	}
 	booted = true;
@@ -173,32 +173,22 @@ function react(id: string, key: string) {
 	if (existing?.mine && existing.myReactionId) {
 		c.redactEvent(room.id, existing.myReactionId);
 	} else {
-		// biome-ignore lint/suspicious/noExplicitAny: SDK event content
-		c.sendEvent(
-			room.id,
-			"m.reaction" as any,
-			{
-				"m.relates_to": { rel_type: "m.annotation", event_id: id, key },
-				// biome-ignore lint/suspicious/noExplicitAny: SDK event content
-			} as any,
-		);
+		// biome-ignore lint/suspicious/noExplicitAny: raw SDK send
+		(c.sendEvent as any)(room.id, "m.reaction", {
+			"m.relates_to": { rel_type: "m.annotation", event_id: id, key },
+		});
 	}
 }
 function editMsg(id: string, text: string) {
 	const c = getClient();
-	if (c && room)
-		// biome-ignore lint/suspicious/noExplicitAny: SDK event content
-		c.sendEvent(
-			room.id,
-			"m.room.message" as any,
-			{
-				msgtype: "m.text",
-				body: `* ${text}`,
-				"m.new_content": { msgtype: "m.text", body: text },
-				"m.relates_to": { rel_type: "m.replace", event_id: id },
-				// biome-ignore lint/suspicious/noExplicitAny: SDK event content
-			} as any,
-		);
+	if (!c || !room) return;
+	// biome-ignore lint/suspicious/noExplicitAny: raw SDK send
+	(c.sendEvent as any)(room.id, "m.room.message", {
+		msgtype: "m.text",
+		body: `* ${text}`,
+		"m.new_content": { msgtype: "m.text", body: text },
+		"m.relates_to": { rel_type: "m.replace", event_id: id },
+	});
 }
 function deleteMsg(id: string) {
 	const c = getClient();
@@ -224,21 +214,16 @@ async function shareLocation() {
 	const { latitude, longitude, accuracy } = pos.coords;
 	const uri = `geo:${latitude},${longitude}${accuracy != null ? `;u=${Math.round(accuracy)}` : ""}`;
 	const ts = pos.timestamp || 0;
-	// biome-ignore lint/suspicious/noExplicitAny: SDK event content
-	c.sendEvent(
-		room.id,
-		"m.room.message" as any,
-		{
-			body: `Location: ${uri}`,
-			msgtype: "m.location",
-			geo_uri: uri,
-			"org.matrix.msc3488.location": { uri, description: null },
-			"org.matrix.msc3488.asset": { type: "m.self" },
-			"org.matrix.msc3488.ts": ts,
-			"org.matrix.msc1767.text": `Location: ${uri}`,
-			// biome-ignore lint/suspicious/noExplicitAny: SDK event content
-		} as any,
-	);
+	// biome-ignore lint/suspicious/noExplicitAny: raw SDK send
+	(c.sendEvent as any)(room.id, "m.room.message", {
+		body: `Location: ${uri}`,
+		msgtype: "m.location",
+		geo_uri: uri,
+		"org.matrix.msc3488.location": { uri, description: null },
+		"org.matrix.msc3488.asset": { type: "m.self" },
+		"org.matrix.msc3488.ts": ts,
+		"org.matrix.msc1767.text": `Location: ${uri}`,
+	});
 }
 async function createPoll(question: string, options: string[]) {
 	const c = getClient();
