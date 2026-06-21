@@ -1,3 +1,4 @@
+import inject from "@rollup/plugin-inject";
 import adapter from "@sveltejs/adapter-static";
 import { sveltekit } from "@sveltejs/kit/vite";
 import { playwright } from "@vitest/browser-playwright";
@@ -16,6 +17,13 @@ export default defineConfig({
 			adapter: adapter({ fallback: "index.html" }),
 		}),
 	],
+	// matrix-js-sdk expects the Node `global` in the browser.
+	define: { global: "globalThis" },
+	build: {
+		rollupOptions: {
+			plugins: [inject({ Buffer: ["buffer", "Buffer"] })],
+		},
+	},
 	test: {
 		expect: { requireAssertions: true },
 		projects: [
