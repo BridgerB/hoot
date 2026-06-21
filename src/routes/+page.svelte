@@ -156,10 +156,23 @@ async function loadOlder() {
 async function newRoom() {
 	const name = window.prompt("New room name");
 	const c = getClient();
-	if (name?.trim() && c) {
-		const { room_id } = await c.createRoom({ name: name.trim() });
-		openRoom(room_id);
-	}
+	if (!name?.trim() || !c) return;
+	const encrypted = mx.crypto && window.confirm("End-to-end encrypted room?");
+	const { room_id } = await c.createRoom({
+		name: name.trim(),
+		...(encrypted
+			? {
+					initial_state: [
+						{
+							type: "m.room.encryption",
+							state_key: "",
+							content: { algorithm: "m.megolm.v1.aes-sha2" },
+						},
+					],
+				}
+			: {}),
+	});
+	openRoom(room_id);
 }
 async function createSpace() {
 	const name = window.prompt("New space name");

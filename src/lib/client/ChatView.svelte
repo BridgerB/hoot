@@ -193,7 +193,7 @@ function toggleSearch() {
 			{:else}
 				<span class="av" class:dm={room.kind === "dm"} style="--c:{room.color}">{room.glyph}</span>
 				<div class="meta">
-					<strong>{room.name}</strong>
+					<strong>{room.encrypted ? "🔒 " : ""}{room.name}</strong>
 					<span class="topic">
 						{room.kind === "dm" ? "Direct message" : `${room.memberCount ?? 0} members${room.topic ? ` · ${room.topic}` : ""}`}
 					</span>

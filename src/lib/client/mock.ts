@@ -17,6 +17,7 @@ export type Room = {
 	muted?: boolean;
 	topic?: string;
 	memberCount?: number;
+	encrypted?: boolean;
 };
 
 export type Reaction = {

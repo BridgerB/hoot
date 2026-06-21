@@ -104,11 +104,24 @@ function mapEvent(
 	e: MatrixEvent,
 	myId: string,
 ): Message {
+	const sender = e.getSender() ?? "";
+	const ts = e.getTs();
+	if (e.getType() === "m.room.encrypted" || e.isDecryptionFailure()) {
+		return {
+			id: e.getId() ?? `${ts}-${sender}`,
+			sender: nameOf(room, sender),
+			senderId: sender,
+			color: colorFor(sender),
+			body: "🔒 Unable to decrypt this message yet",
+			ts: hhmm(ts),
+			tsMs: ts,
+			me: sender === myId,
+			reactions: [],
+		};
+	}
 	const orig = e.getContent() as Content;
 	const rep = e.replacingEvent();
 	const c: Content = rep ? (rep.getContent()["m.new_content"] ?? orig) : orig;
-	const sender = e.getSender() ?? "";
-	const ts = e.getTs();
 	const base: Message = {
 		id: e.getId() ?? `${ts}-${sender}`,
 		sender: nameOf(room, sender),
@@ -159,7 +172,8 @@ export function roomMessages(
 		.getEvents()
 		.filter(
 			(e) =>
-				e.getType() === "m.room.message" &&
+				(e.getType() === "m.room.message" ||
+					e.getType() === "m.room.encrypted") &&
 				!e.isRedacted() &&
 				(e.getContent() as Content)["m.relates_to"]?.rel_type !== "m.replace",
 		)
@@ -221,6 +235,7 @@ function mapRoom(client: MatrixClient, room: SdkRoom, myId: string): Room {
 		ts: last?.ts ?? "",
 		unread: room.getUnreadNotificationCount() ?? 0,
 		memberCount,
+		encrypted: room.hasEncryptionStateEvent(),
 		topic: (topicEv?.getContent() as Content | undefined)?.topic,
 	};
 }

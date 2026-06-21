@@ -4,8 +4,10 @@
 import {
 	ClientEvent,
 	createClient,
+	IndexedDBCryptoStore,
 	IndexedDBStore,
 	type MatrixClient,
+	MatrixEventEvent,
 	RoomEvent,
 	RoomMemberEvent,
 	SyncState,
@@ -39,8 +41,9 @@ export const mx = $state<{
 	status: "idle" | "connecting" | "syncing" | "ready" | "error";
 	error?: string;
 	userId: string;
+	crypto: boolean; // Rust crypto (E2EE) initialised
 	rev: number; // bumped on any sync/timeline change so the UI re-derives
-}>({ status: "idle", userId: "", rev: 0 });
+}>({ status: "idle", userId: "", crypto: false, rev: 0 });
 
 export const hasSession = () => !!loadSession();
 
@@ -83,6 +86,7 @@ async function start(session: Session): Promise<void> {
 		localStorage: window.localStorage,
 		dbName: "hoot-sync",
 	});
+	const cryptoStore = new IndexedDBCryptoStore(window.indexedDB, "hoot-crypto");
 
 	client = createClient({
 		baseUrl: session.baseUrl,
@@ -90,10 +94,25 @@ async function start(session: Session): Promise<void> {
 		userId: session.userId,
 		deviceId: session.deviceId,
 		store,
+		cryptoStore,
 		timelineSupport: true,
 	});
 	// startup() must run after the store is assigned to the client.
 	await store.startup();
+
+	if (import.meta.env.DEV) {
+		(window as unknown as Record<string, unknown>).__mxClient = client;
+	}
+
+	// E2EE: the Rust crypto engine (matrix-sdk-crypto-wasm) persists to its
+	// own IndexedDB. Encrypted rooms then decrypt automatically.
+	try {
+		await client.initRustCrypto({ useIndexedDB: true });
+		mx.crypto = true;
+	} catch (e) {
+		mx.crypto = false;
+		console.error("initRustCrypto failed", e);
+	}
 
 	client.on(ClientEvent.Sync, (state: SyncState) => {
 		if (state === SyncState.Prepared || state === SyncState.Syncing) {
@@ -107,6 +126,7 @@ async function start(session: Session): Promise<void> {
 	client.on(RoomEvent.Timeline, () => mx.rev++);
 	client.on(RoomEvent.Receipt, () => mx.rev++);
 	client.on(RoomMemberEvent.Typing, () => mx.rev++);
+	client.on(MatrixEventEvent.Decrypted, () => mx.rev++);
 	client.on(ClientEvent.Room, () => {
 		mx.rev++;
 		void refreshNames();
