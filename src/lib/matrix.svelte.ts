@@ -28,7 +28,15 @@ export type Session = {
 	deviceId: string;
 };
 
-const KEY = "hoot.session";
+// Optional ?profile=NAME isolates the session (separate localStorage key +
+// IndexedDB stores) so multiple accounts can run in the same browser — e.g.
+// /?profile=bob in another tab. Empty = the default profile.
+const PROFILE =
+	typeof location !== "undefined"
+		? (new URLSearchParams(location.search).get("profile") ?? "")
+		: "";
+const SFX = PROFILE ? `-${PROFILE}` : "";
+const KEY = `hoot.session${PROFILE ? `.${PROFILE}` : ""}`;
 const loadSession = (): Session | null => {
 	try {
 		const v = localStorage.getItem(KEY);
@@ -91,9 +99,12 @@ async function start(session: Session): Promise<void> {
 	const store = new IndexedDBStore({
 		indexedDB: window.indexedDB,
 		localStorage: window.localStorage,
-		dbName: "hoot-sync",
+		dbName: `hoot-sync${SFX}`,
 	});
-	const cryptoStore = new IndexedDBCryptoStore(window.indexedDB, "hoot-crypto");
+	const cryptoStore = new IndexedDBCryptoStore(
+		window.indexedDB,
+		`hoot-crypto${SFX}`,
+	);
 
 	client = createClient({
 		baseUrl: session.baseUrl,
@@ -123,7 +134,12 @@ async function start(session: Session): Promise<void> {
 	// E2EE: the Rust crypto engine (matrix-sdk-crypto-wasm) persists to its
 	// own IndexedDB. Encrypted rooms then decrypt automatically.
 	try {
-		await client.initRustCrypto({ useIndexedDB: true });
+		await client.initRustCrypto({
+			useIndexedDB: true,
+			// isolate non-default profiles' rust-crypto store (the default keeps
+			// its existing DB so alice's cross-signing setup persists)
+			...(PROFILE ? { cryptoDatabasePrefix: `hoot-rust-${PROFILE}` } : {}),
+		});
 		mx.crypto = true;
 	} catch (e) {
 		mx.crypto = false;
