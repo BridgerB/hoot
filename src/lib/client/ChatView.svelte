@@ -17,6 +17,7 @@ let {
 	onLoadOlder,
 	onTyping,
 	onSearch,
+	onUpload,
 	mobile,
 }: {
 	room: Room | undefined;
@@ -33,6 +34,7 @@ let {
 	onLoadOlder: () => void;
 	onTyping: (t: boolean) => void;
 	onSearch: (term: string) => Promise<Message[]>;
+	onUpload: (file: File) => Promise<string>;
 	mobile: boolean;
 } = $props();
 
@@ -166,12 +168,7 @@ async function onPickFile(e: Event) {
 	const file = input.files?.[0];
 	input.value = "";
 	if (!file) return;
-	const res = await fetch(`/api/upload?name=${encodeURIComponent(file.name)}`, {
-		method: "POST",
-		headers: { "content-type": file.type || "application/octet-stream" },
-		body: file,
-	});
-	const { mxc } = await res.json();
+	const mxc = await onUpload(file);
 	if (!mxc) return;
 	onSend({
 		msgtype: file.type.startsWith("image/") ? "m.image" : "m.file",

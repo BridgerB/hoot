@@ -165,6 +165,12 @@ function deleteMsg(id: string) {
 	const c = getClient();
 	if (c && room) c.redactEvent(room.id, id);
 }
+async function uploadFile(file: File): Promise<string> {
+	const c = getClient();
+	if (!c) return "";
+	const res = await c.uploadContent(file, { name: file.name, type: file.type });
+	return res.content_uri;
+}
 function sendTyping(t: boolean) {
 	const c = getClient();
 	if (c && room) c.sendTyping(room.id, t, t ? 6000 : 0);
@@ -277,6 +283,7 @@ onMount(() => {
 				const c = getClient();
 				return c && room ? searchRoom(c, room.id, term, mx.userId) : Promise.resolve([]);
 			}}
+			onUpload={uploadFile}
 			{mobile}
 		/>
 
