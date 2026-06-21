@@ -263,8 +263,17 @@ function votePoll(pollId: string, answerId: string) {
 	c.sendEvent(room.id, null, type as any, content as any);
 }
 function placeCall(video: boolean) {
-	if (room) callController.placeCall(room.id, video);
+	if (!room) return;
+	if (room.kind === "dm") callController.placeCall(room.id, video);
+	else callController.startGroupCall(room.id, video);
 }
+function joinCall() {
+	if (room) callController.joinGroupCall(room.id);
+}
+const groupCallActive = $derived.by(() => {
+	void mx.rev;
+	return room && getClient() ? callController.hasGroupCall(room.id) : false;
+});
 async function startDm(userId: string) {
 	const c = getClient();
 	if (!c) return;
@@ -400,6 +409,8 @@ onMount(() => {
 			onCreatePoll={createPoll}
 			onVote={votePoll}
 			onCall={placeCall}
+			onJoinCall={joinCall}
+			groupCallActive={groupCallActive && room?.kind !== "dm"}
 			onOpenThread={openThread}
 			{mobile}
 		/>

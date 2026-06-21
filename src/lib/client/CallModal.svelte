@@ -33,6 +33,27 @@ const label = $derived(
 			</div>
 		</div>
 	</div>
+{:else if c.groupCall}
+	<div class="callwrap">
+		<div class="stage">
+			<div class="grid">
+				{#each c.groupFeeds as feed (feed.userId + (feed.deviceId ?? ""))}
+					<div class="tile">
+						<CallFeedVideo {feed} muted={feed.isLocal()} />
+						<span class="tname">{feed.userId?.replace(/^@/, "").split(":")[0]}{feed.isLocal() ? " (you)" : ""}</span>
+					</div>
+				{/each}
+				{#if c.groupFeeds.length === 0}
+					<div class="placeholder"><div class="big">👥</div><p>Connecting group call…</p></div>
+				{/if}
+			</div>
+			<div class="controls">
+				<button class="cbtn" class:off={c.micMuted} title="Mute" aria-label="Mute" onclick={() => c.toggleMicGroup()}>{c.micMuted ? "🔇" : "🎙️"}</button>
+				<button class="cbtn" class:off={c.vidMuted} title="Camera" aria-label="Camera" onclick={() => c.toggleVidGroup()}>{c.vidMuted ? "📷" : "🎥"}</button>
+				<button class="cbtn hang" title="Leave" aria-label="Leave" onclick={() => c.leaveGroupCall()}>📴</button>
+			</div>
+		</div>
+	</div>
 {:else if c.call}
 	<div class="callwrap">
 		<div class="stage">
@@ -132,6 +153,31 @@ const label = $derived(
 	justify-items: center;
 	gap: 4px;
 	color: #fff;
+}
+.grid {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 6px;
+	padding: 6px;
+}
+.tile {
+	position: relative;
+	border-radius: 10px;
+	overflow: hidden;
+	background: #000;
+	min-height: 140px;
+}
+.tname {
+	position: absolute;
+	left: 8px;
+	bottom: 6px;
+	font-size: 11px;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.5);
+	padding: 2px 7px;
+	border-radius: 6px;
 }
 .pip {
 	position: absolute;

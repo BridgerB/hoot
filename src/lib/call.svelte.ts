@@ -4,6 +4,10 @@
 import {
 	CallEvent,
 	createNewMatrixCall,
+	type GroupCall,
+	GroupCallEvent,
+	GroupCallIntent,
+	GroupCallType,
 	type MatrixCall,
 	type MatrixClient,
 } from "matrix-js-sdk";
@@ -84,6 +88,72 @@ class CallController {
 		if (this.call === call) this.call = null;
 		if (this.incoming === call) this.incoming = null;
 		this.feeds = [];
+		this.micMuted = false;
+		this.vidMuted = false;
+		this.state = "";
+	}
+
+	// --- group calls (full-mesh MSC3401, no SFU — peer-to-peer over TURN) ---
+	groupCall = $state<GroupCall | null>(null);
+	groupFeeds = $state<CallFeed[]>([]);
+
+	hasGroupCall(roomId: string): boolean {
+		return !!this.#client?.getGroupCallForRoom(roomId);
+	}
+
+	async startGroupCall(roomId: string, video: boolean) {
+		if (!this.#client) return;
+		let gc = this.#client.getGroupCallForRoom(roomId);
+		if (!gc) {
+			gc = await this.#client.createGroupCall(
+				roomId,
+				video ? GroupCallType.Video : GroupCallType.Voice,
+				false,
+				GroupCallIntent.Prompt,
+			);
+		}
+		await this.#enterGroup(gc);
+	}
+
+	async joinGroupCall(roomId: string) {
+		const gc = this.#client?.getGroupCallForRoom(roomId);
+		if (gc) await this.#enterGroup(gc);
+	}
+
+	leaveGroupCall() {
+		this.groupCall?.leave();
+		this.#teardownGroup();
+	}
+
+	async toggleMicGroup() {
+		if (this.groupCall)
+			this.micMuted = await this.groupCall.setMicrophoneMuted(!this.micMuted);
+	}
+	async toggleVidGroup() {
+		if (this.groupCall)
+			this.vidMuted = await this.groupCall.setLocalVideoMuted(!this.vidMuted);
+	}
+
+	async #enterGroup(gc: GroupCall) {
+		const sync = () => {
+			this.groupFeeds = gc.userMediaFeeds;
+		};
+		gc.on(GroupCallEvent.UserMediaFeedsChanged, sync);
+		gc.on(GroupCallEvent.ParticipantsChanged, sync);
+		gc.on(GroupCallEvent.GroupCallStateChanged, (s: string) => {
+			this.state = s;
+			if (s === "ended") this.#teardownGroup();
+		});
+		this.groupCall = gc;
+		await gc.initLocalCallFeed();
+		await gc.enter();
+		sync();
+	}
+
+	#teardownGroup() {
+		this.groupCall?.removeAllListeners();
+		this.groupCall = null;
+		this.groupFeeds = [];
 		this.micMuted = false;
 		this.vidMuted = false;
 		this.state = "";

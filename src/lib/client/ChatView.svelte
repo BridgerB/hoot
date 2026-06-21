@@ -23,6 +23,8 @@ let {
 	onCreatePoll,
 	onVote,
 	onCall,
+	onJoinCall,
+	groupCallActive,
 	onOpenThread,
 	mobile,
 }: {
@@ -45,6 +47,8 @@ let {
 	onCreatePoll: (question: string, options: string[]) => void;
 	onVote: (pollId: string, answerId: string) => void;
 	onCall: (video: boolean) => void;
+	onJoinCall: () => void;
+	groupCallActive: boolean;
 	onOpenThread: (rootId: string) => void;
 	mobile: boolean;
 } = $props();
@@ -437,6 +441,13 @@ function toggleSearch() {
 				<p class="noresults">{q.trim() ? "No messages match." : "No messages yet — say hi 👋"}</p>
 			{/if}
 		</div>
+
+		{#if groupCallActive}
+			<div class="callbanner">
+				<span>📹 Group call in progress</span>
+				<button onclick={onJoinCall}>Join</button>
+			</div>
+		{/if}
 
 		{#if typing.length}
 			<div class="typing">{typing.join(", ")} {typing.length === 1 ? "is" : "are"} typing…</div>
@@ -1011,6 +1022,28 @@ function toggleSearch() {
 	font-size: 12px;
 	color: var(--muted);
 	font-style: italic;
+}
+.callbanner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin: 0 14px 8px;
+	padding: 9px 14px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--good, #3fb950) 16%, var(--surface));
+	border: 1px solid color-mix(in srgb, var(--good, #3fb950) 45%, transparent);
+	font-size: 13px;
+	font-weight: 600;
+}
+.callbanner button {
+	padding: 5px 16px;
+	border-radius: 9px;
+	border: none;
+	background: var(--good, #3fb950);
+	color: #0b0c10;
+	font-weight: 800;
+	font-size: 13px;
+	cursor: pointer;
 }
 .banner {
 	display: flex;
