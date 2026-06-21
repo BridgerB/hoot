@@ -12,7 +12,13 @@ import {
 	RoomMemberEvent,
 	SyncState,
 } from "matrix-js-sdk";
+import { decodeRecoveryKey } from "matrix-js-sdk/lib/crypto-api/recovery-key";
 import { resolveNames } from "./matrix-map";
+
+// The decoded 4S (secret storage) key, held in memory once the user sets up or
+// unlocks encryption. The getSecretStorageKey callback (wired at createClient)
+// hands it back to the SDK whenever it needs to read/write cross-signing keys.
+let secretStorageKey: Uint8Array<ArrayBuffer> | undefined;
 
 export type Session = {
 	baseUrl: string;
@@ -96,12 +102,21 @@ async function start(session: Session): Promise<void> {
 		store,
 		cryptoStore,
 		timelineSupport: true,
+		cryptoCallbacks: {
+			getSecretStorageKey: async ({ keys }) => {
+				if (!secretStorageKey) return null;
+				const keyId = Object.keys(keys)[0];
+				return [keyId, secretStorageKey];
+			},
+		},
 	});
 	// startup() must run after the store is assigned to the client.
 	await store.startup();
 
 	if (import.meta.env.DEV) {
-		(window as unknown as Record<string, unknown>).__mxClient = client;
+		const w = window as unknown as Record<string, unknown>;
+		w.__mxClient = client;
+		w.__hootCrypto = { setupEncryption, unlockEncryption, encryptionStatus };
 	}
 
 	// E2EE: the Rust crypto engine (matrix-sdk-crypto-wasm) persists to its
@@ -143,6 +158,68 @@ async function refreshNames(): Promise<void> {
 		.getRooms()
 		.flatMap((r) => r.getJoinedMembers().map((m) => m.userId));
 	if (await resolveNames(client, ids)) mx.rev++;
+}
+
+// --- E2EE setup / unlock (cross-signing + key backup + secret storage) ---
+
+// First-time setup: generate a recovery key, create 4S + key backup, and
+// publish cross-signing keys (UIA password auth). Returns the recovery key to
+// show the user once.
+export async function setupEncryption(password: string): Promise<string> {
+	const crypto = client?.getCrypto();
+	if (!client || !crypto) throw new Error("crypto unavailable");
+	const rk = await crypto.createRecoveryKeyFromPassphrase();
+	secretStorageKey = rk.privateKey as Uint8Array<ArrayBuffer>;
+	await crypto.bootstrapSecretStorage({
+		createSecretStorageKey: async () => rk,
+		setupNewSecretStorage: true,
+		setupNewKeyBackup: true,
+	});
+	await crypto.bootstrapCrossSigning({
+		authUploadDeviceSigningKeys: async (makeRequest) => {
+			await makeRequest({
+				type: "m.login.password",
+				identifier: { type: "m.id.user", user: client?.getUserId() ?? "" },
+				password,
+			});
+		},
+	});
+	mx.rev++;
+	return rk.encodedPrivateKey ?? "";
+}
+
+// Existing account, new device: unlock 4S with the recovery key and pull
+// cross-signing + key backup onto this device so it becomes verified.
+export async function unlockEncryption(recoveryKey: string): Promise<void> {
+	const crypto = client?.getCrypto();
+	if (!client || !crypto) throw new Error("crypto unavailable");
+	secretStorageKey = decodeRecoveryKey(recoveryKey.replace(/\s+/g, ""));
+	await crypto.bootstrapCrossSigning({
+		authUploadDeviceSigningKeys: async () => {},
+	});
+	mx.rev++;
+}
+
+export async function encryptionStatus(): Promise<{
+	crypto: boolean;
+	crossSigning: boolean;
+	secretStorage: boolean;
+	backup: string | null;
+}> {
+	const crypto = client?.getCrypto();
+	if (!crypto)
+		return {
+			crypto: false,
+			crossSigning: false,
+			secretStorage: false,
+			backup: null,
+		};
+	return {
+		crypto: true,
+		crossSigning: await crypto.isCrossSigningReady(),
+		secretStorage: await crypto.isSecretStorageReady(),
+		backup: await crypto.getActiveSessionBackupVersion(),
+	};
 }
 
 export async function logout(): Promise<void> {
