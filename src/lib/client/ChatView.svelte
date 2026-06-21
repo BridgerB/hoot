@@ -19,6 +19,7 @@ let {
 	onTyping,
 	onSearch,
 	onUpload,
+	onShareLocation,
 	mobile,
 }: {
 	room: Room | undefined;
@@ -36,6 +37,7 @@ let {
 	onTyping: (t: boolean) => void;
 	onSearch: (term: string) => Promise<Message[]>;
 	onUpload: (file: File) => Promise<string>;
+	onShareLocation: () => void;
 	mobile: boolean;
 } = $props();
 
@@ -181,6 +183,80 @@ async function onPickFile(e: Event) {
 	});
 }
 
+// --- voice messages (MediaRecorder -> m.audio + MSC3245) ---
+let recording = $state(false);
+let recSecs = $state(0);
+let mediaRec: MediaRecorder | undefined;
+let recChunks: Blob[] = [];
+let recTimer: ReturnType<typeof setInterval>;
+let recStart = 0;
+let recCancelled = false;
+
+async function computeWaveform(blob: Blob): Promise<number[]> {
+	try {
+		const ctx = new AudioContext();
+		const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+		const data = buf.getChannelData(0);
+		const N = 50;
+		const block = Math.max(1, Math.floor(data.length / N));
+		const out: number[] = [];
+		for (let i = 0; i < N; i++) {
+			let sum = 0;
+			for (let j = 0; j < block; j++) sum += Math.abs(data[i * block + j] || 0);
+			out.push(Math.min(1024, Math.round((sum / block) * 4096)));
+		}
+		ctx.close();
+		return out;
+	} catch {
+		return [];
+	}
+}
+
+async function startRec() {
+	try {
+		const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+		recChunks = [];
+		recCancelled = false;
+		mediaRec = new MediaRecorder(stream);
+		mediaRec.ondataavailable = (e) => recChunks.push(e.data);
+		mediaRec.onstop = async () => {
+			for (const t of stream.getTracks()) t.stop();
+			if (recCancelled) return;
+			const blob = new Blob(recChunks, {
+				type: mediaRec?.mimeType || "audio/webm",
+			});
+			const durationMs = Date.now() - recStart;
+			const waveform = await computeWaveform(blob);
+			const mxc = await onUpload(
+				new File([blob], "voice.webm", { type: blob.type }),
+			);
+			if (!mxc) return;
+			onSend({
+				body: "Voice message",
+				msgtype: "m.audio",
+				url: mxc,
+				info: { duration: durationMs, mimetype: blob.type, size: blob.size },
+				"org.matrix.msc1767.text": "Voice message",
+				"org.matrix.msc1767.audio": { duration: durationMs, waveform },
+				"org.matrix.msc3245.voice": {},
+			});
+		};
+		recStart = Date.now();
+		mediaRec.start();
+		recording = true;
+		recSecs = 0;
+		recTimer = setInterval(() => recSecs++, 1000);
+	} catch {
+		recording = false;
+	}
+}
+function stopRec(cancel = false) {
+	clearInterval(recTimer);
+	recCancelled = cancel;
+	recording = false;
+	mediaRec?.stop();
+}
+
 let lastId = "";
 $effect(() => {
 	const id = messages.at(-1)?.id ?? "";
@@ -266,8 +342,9 @@ function toggleSearch() {
 								</div>
 							{:else if m.kind === "location" && m.lat != null && m.lng != null}
 								<a class="locbubble" href="https://www.openstreetmap.org/?mlat={m.lat}&mlon={m.lng}#map=16/{m.lat}/{m.lng}" target="_blank" rel="noreferrer">
-									<img src="https://staticmap.openstreetmap.de/staticmap.php?center={m.lat},{m.lng}&zoom=15&size=240x120&markers={m.lat},{m.lng},red-pushpin" alt="map" loading="lazy" />
-									<span>📍 {m.lat.toFixed(4)}, {m.lng.toFixed(4)}</span>
+									<span class="locpin">📍</span>
+									<span class="loctext"><b>Shared location</b><br />{m.lat.toFixed(4)}, {m.lng.toFixed(4)}</span>
+									<span class="locopen">Open ↗</span>
 								</a>
 							{:else if m.kind === "file" && m.url}
 								<a class="filebubble" href={m.url} target="_blank" rel="noreferrer" download={m.name}>
@@ -324,21 +401,38 @@ function toggleSearch() {
 		{/if}
 
 		<div class="composer">
-			<input class="hidden" type="file" bind:this={fileInput} onchange={onPickFile} />
-			<button class="hd" title="Attach file" aria-label="Attach file" onclick={() => fileInput?.click()}>
-				<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.05-9.19 9.2a5 5 0 0 1-7.07-7.08l9.2-9.19a3.33 3.33 0 0 1 4.71 4.71l-9.2 9.19a1.67 1.67 0 0 1-2.36-2.36l8.49-8.48" /></svg>
-			</button>
-			<input
-				class="msg-input"
-				bind:value={draft}
-				onkeydown={onKey}
-				oninput={notifyTyping}
-				onblur={stopTyping}
-				placeholder={editing ? "Edit message…" : `Message ${room.kind === "dm" ? room.name : `#${room.name}`}`}
-			/>
-			<button class="send" title="Send" aria-label="Send" onclick={submit}>
-				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4 20-7z" /></svg>
-			</button>
+			{#if recording}
+				<span class="recdot"></span>
+				<span class="rectime">Recording… {recSecs}s</span>
+				<button class="hd" title="Cancel" aria-label="Cancel recording" onclick={() => stopRec(true)}>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+				</button>
+				<button class="send" title="Send voice message" aria-label="Send voice message" onclick={() => stopRec(false)}>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4 20-7z" /></svg>
+				</button>
+			{:else}
+				<input class="hidden" type="file" bind:this={fileInput} onchange={onPickFile} />
+				<button class="hd" title="Attach file" aria-label="Attach file" onclick={() => fileInput?.click()}>
+					<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.05-9.19 9.2a5 5 0 0 1-7.07-7.08l9.2-9.19a3.33 3.33 0 0 1 4.71 4.71l-9.2 9.19a1.67 1.67 0 0 1-2.36-2.36l8.49-8.48" /></svg>
+				</button>
+				<button class="hd" title="Share location" aria-label="Share location" onclick={onShareLocation}>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+				</button>
+				<button class="hd" title="Voice message" aria-label="Record voice message" onclick={startRec}>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0M12 17v4" /></svg>
+				</button>
+				<input
+					class="msg-input"
+					bind:value={draft}
+					onkeydown={onKey}
+					oninput={notifyTyping}
+					onblur={stopTyping}
+					placeholder={editing ? "Edit message…" : `Message ${room.kind === "dm" ? room.name : `#${room.name}`}`}
+				/>
+				<button class="send" title="Send" aria-label="Send" onclick={submit}>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4 20-7z" /></svg>
+				</button>
+			{/if}
 		</div>
 	{:else}
 		<div class="placeholder"><div class="owl">🦉</div><p>Pick a conversation to start hooting.</p></div>
@@ -540,6 +634,65 @@ function toggleSearch() {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+.audiobubble {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.audiobubble audio {
+	height: 38px;
+	max-width: 260px;
+}
+.adur {
+	font-size: 11px;
+	color: var(--muted);
+}
+.locbubble {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	border-radius: 12px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	padding: 10px 12px;
+	text-decoration: none;
+	max-width: 280px;
+}
+.locpin {
+	font-size: 22px;
+}
+.loctext {
+	flex: 1;
+	font-size: 13px;
+	color: var(--text-dim);
+	line-height: 1.35;
+}
+.loctext b {
+	color: var(--text);
+}
+.locopen {
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--accent-2);
+}
+.recdot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: var(--danger);
+	animation: pulse 1.2s ease-in-out infinite;
+}
+.rectime {
+	flex: 1;
+	font-size: 13.5px;
+	color: var(--text);
+	font-variant-numeric: tabular-nums;
+}
+@keyframes pulse {
+	50% {
+		opacity: 0.35;
+	}
 }
 .bubble {
 	background: var(--surface);

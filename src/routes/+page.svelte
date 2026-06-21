@@ -186,6 +186,36 @@ async function uploadFile(file: File): Promise<string> {
 	const res = await c.uploadContent(file, { name: file.name, type: file.type });
 	return res.content_uri;
 }
+async function shareLocation() {
+	const c = getClient();
+	if (!c || !room) return;
+	const pos = await new Promise<GeolocationPosition | null>((res) =>
+		navigator.geolocation.getCurrentPosition(res, () => res(null), {
+			enableHighAccuracy: true,
+			timeout: 10000,
+			maximumAge: 60000,
+		}),
+	);
+	if (!pos) return;
+	const { latitude, longitude, accuracy } = pos.coords;
+	const uri = `geo:${latitude},${longitude}${accuracy != null ? `;u=${Math.round(accuracy)}` : ""}`;
+	const ts = pos.timestamp || 0;
+	// biome-ignore lint/suspicious/noExplicitAny: SDK event content
+	c.sendEvent(
+		room.id,
+		"m.room.message" as any,
+		{
+			body: `Location: ${uri}`,
+			msgtype: "m.location",
+			geo_uri: uri,
+			"org.matrix.msc3488.location": { uri, description: null },
+			"org.matrix.msc3488.asset": { type: "m.self" },
+			"org.matrix.msc3488.ts": ts,
+			"org.matrix.msc1767.text": `Location: ${uri}`,
+			// biome-ignore lint/suspicious/noExplicitAny: SDK event content
+		} as any,
+	);
+}
 async function startDm(userId: string) {
 	const c = getClient();
 	if (!c) return;
@@ -317,6 +347,7 @@ onMount(() => {
 				return c && room ? searchRoom(c, room.id, term, mx.userId) : Promise.resolve([]);
 			}}
 			onUpload={uploadFile}
+			onShareLocation={shareLocation}
 			{mobile}
 		/>
 
