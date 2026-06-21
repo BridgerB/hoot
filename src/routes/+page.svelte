@@ -7,7 +7,7 @@ import { goto } from "$app/navigation";
 import { callController } from "$lib/call.svelte";
 import CallModal from "$lib/client/CallModal.svelte";
 import ChatView from "$lib/client/ChatView.svelte";
-import { type Filter } from "$lib/client/mock";
+import type { Filter } from "$lib/client/mock";
 import RightPanel from "$lib/client/RightPanel.svelte";
 import RoomList from "$lib/client/RoomList.svelte";
 import Settings from "$lib/client/Settings.svelte";
@@ -30,9 +30,11 @@ import {
 	roomMembers,
 	roomMessages,
 	roomTyping,
+	roomWidgets,
 	searchRoom,
 	threadMessages,
 } from "$lib/matrix-map";
+import { getStickers, type Sticker, sendSticker } from "$lib/stickers";
 
 let booted = $state(false);
 onMount(async () => {
@@ -255,6 +257,21 @@ function placeCall(video: boolean) {
 function joinCall() {
 	if (room) callController.joinGroupCall(room.id);
 }
+const stickers = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	const sdkRoom = room && c?.getRoom(room.id);
+	return sdkRoom && c ? getStickers(c, sdkRoom) : [];
+});
+function onSticker(s: Sticker) {
+	const c = getClient();
+	if (c && room) sendSticker(c, room.id, s);
+}
+const widgets = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return room && c ? roomWidgets(c, room.id) : [];
+});
 const groupCallActive = $derived.by(() => {
 	void mx.rev;
 	return room && getClient() ? callController.hasGroupCall(room.id) : false;
@@ -397,6 +414,8 @@ onMount(() => {
 			onJoinCall={joinCall}
 			groupCallActive={groupCallActive && room?.kind !== "dm"}
 			onOpenThread={openThread}
+			{stickers}
+			onSticker={onSticker}
 			{mobile}
 		/>
 
@@ -407,6 +426,7 @@ onMount(() => {
 				{room}
 				{members}
 				{messages}
+				{widgets}
 				myId={mx.userId}
 				{myPower}
 				onClose={() => (rightOpen = false)}

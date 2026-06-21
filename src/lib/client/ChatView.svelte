@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Sticker } from "$lib/stickers";
 import EmojiPicker from "./EmojiPicker.svelte";
 import { renderMarkdown } from "./md";
 import type { Message, Room } from "./mock";
@@ -26,6 +27,8 @@ let {
 	onJoinCall,
 	groupCallActive,
 	onOpenThread,
+	stickers,
+	onSticker,
 	mobile,
 }: {
 	room: Room | undefined;
@@ -50,8 +53,12 @@ let {
 	onJoinCall: () => void;
 	groupCallActive: boolean;
 	onOpenThread: (rootId: string) => void;
+	stickers: Sticker[];
+	onSticker: (s: Sticker) => void;
 	mobile: boolean;
 } = $props();
+
+let stickerOpen = $state(false);
 
 const QUICK = ["👍", "❤️", "😂", "🎉", "👀"];
 
@@ -466,6 +473,22 @@ function toggleSearch() {
 			<div class="banner">↩ Replying to <b>{replyTo.sender}</b>: {replyTo.body.slice(0, 50)} <button onclick={() => (replyTo = null)}>cancel</button></div>
 		{/if}
 
+		{#if stickerOpen}
+			<div class="stickerpanel">
+				{#if stickers.length}
+					<div class="sgrid">
+						{#each stickers as s (s.shortcode + s.mxc)}
+							<button class="sitem" title={s.body} onclick={() => { onSticker(s); stickerOpen = false; }}>
+								<img src={s.httpUrl} alt={s.body} loading="lazy" />
+							</button>
+						{/each}
+					</div>
+				{:else}
+					<p class="sempty">No sticker packs. Add an <code>im.ponies</code> pack (e.g. in Element) and it'll show up here.</p>
+				{/if}
+			</div>
+		{/if}
+
 		{#if pollOpen}
 			<div class="pollcreate">
 				<input class="pollinput" placeholder="Ask a question…" bind:value={pollQ} />
@@ -504,6 +527,9 @@ function toggleSearch() {
 				</button>
 				<button class="hd" class:on={pollOpen} title="Create poll" aria-label="Create poll" onclick={() => (pollOpen = !pollOpen)}>
 					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-6" /></svg>
+				</button>
+				<button class="hd" class:on={stickerOpen} title="Sticker" aria-label="Sticker" onclick={() => (stickerOpen = !stickerOpen)}>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.5V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5.5z" /><path d="M21 12.5 12.5 21v-6a2 2 0 0 1 2-2h6z" /></svg>
 				</button>
 				<input
 					class="msg-input"
@@ -845,6 +871,43 @@ function toggleSearch() {
 	display: flex;
 	flex-direction: column;
 	gap: 7px;
+}
+.stickerpanel {
+	margin: 0 14px 8px;
+	padding: 10px;
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	background: var(--surface);
+	max-height: 200px;
+	overflow-y: auto;
+}
+.sgrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+	gap: 6px;
+}
+.sitem {
+	border: none;
+	background: transparent;
+	padding: 4px;
+	border-radius: 8px;
+	cursor: pointer;
+	aspect-ratio: 1;
+}
+.sitem:hover {
+	background: var(--panel-2);
+}
+.sitem img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.sempty {
+	margin: 0;
+	font-size: 13px;
+	color: var(--muted);
+	text-align: center;
+	padding: 8px;
 }
 .pollinput {
 	height: 34px;

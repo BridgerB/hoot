@@ -64,6 +64,8 @@ export type PollData = {
 	totalVotes: number;
 };
 
+export type Widget = { id: string; name: string; url: string };
+
 export type Member = {
 	id: string;
 	name: string;

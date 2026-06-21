@@ -1,10 +1,11 @@
 <script lang="ts">
-import type { Member, Message, Room } from "./mock";
+import type { Member, Message, Room, Widget } from "./mock";
 
 let {
 	room,
 	members,
 	messages,
+	widgets,
 	myId,
 	myPower,
 	onClose,
@@ -15,6 +16,7 @@ let {
 	room: Room;
 	members: Member[];
 	messages: Message[];
+	widgets: Widget[];
 	myId: string;
 	myPower: number;
 	onClose: () => void;
@@ -23,6 +25,8 @@ let {
 	onBan: (userId: string) => void;
 } = $props();
 
+let openWidget = $state<Widget | null>(null);
+
 const online = $derived(members.filter((m) => m.online));
 const offline = $derived(members.filter((m) => !m.online));
 const canModerate = (m: Member) =>
@@ -30,7 +34,7 @@ const canModerate = (m: Member) =>
 const files = $derived(
 	messages.filter((m) => m.kind === "image" || m.kind === "file"),
 );
-let tab = $state<"members" | "files" | "pinned">("members");
+let tab = $state<"members" | "files" | "pinned" | "widgets">("members");
 </script>
 
 <aside class="info" aria-label="Room info">
@@ -53,7 +57,11 @@ let tab = $state<"members" | "files" | "pinned">("members");
 	<div class="quick">
 		<button class:on={tab === "members"} onclick={() => (tab = "members")}>Members</button>
 		<button class:on={tab === "files"} onclick={() => (tab = "files")}>Files</button>
-		<button class:on={tab === "pinned"} onclick={() => (tab = "pinned")}>Pinned</button>
+		{#if widgets.length}
+			<button class:on={tab === "widgets"} onclick={() => (tab = "widgets")}>Widgets</button>
+		{:else}
+			<button class:on={tab === "pinned"} onclick={() => (tab = "pinned")}>Pinned</button>
+		{/if}
 	</div>
 
 	{#snippet memberRow(m: Member)}
@@ -103,12 +111,83 @@ let tab = $state<"members" | "files" | "pinned">("members");
 				</div>
 			{/if}
 		</div>
+	{:else if tab === "widgets"}
+		<div class="widgets">
+			{#if openWidget}
+				<div class="wbar">
+					<button class="wback" onclick={() => (openWidget = null)}>← Widgets</button>
+					<span class="wname">{openWidget.name}</span>
+				</div>
+				<iframe
+					class="wframe"
+					title={openWidget.name}
+					src={openWidget.url}
+					sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-presentation allow-downloads"
+					allow="microphone; camera; encrypted-media; autoplay; display-capture; clipboard-write; clipboard-read;"
+					allowfullscreen
+				></iframe>
+			{:else}
+				{#each widgets as w (w.id)}
+					<button class="wrow" onclick={() => (openWidget = w)}>
+						<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
+						<span>{w.name}</span>
+					</button>
+				{/each}
+			{/if}
+		</div>
 	{:else}
 		<div class="files"><p class="empty">Nothing pinned yet.</p></div>
 	{/if}
 </aside>
 
 <style>
+.widgets {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	flex: 1;
+}
+.wrow {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 10px 14px;
+	border: none;
+	background: transparent;
+	color: var(--text);
+	font-size: 13.5px;
+	text-align: left;
+	cursor: pointer;
+	border-bottom: 1px solid var(--border);
+}
+.wrow:hover {
+	background: var(--panel-2);
+}
+.wbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--border);
+}
+.wback {
+	border: none;
+	background: transparent;
+	color: var(--accent);
+	font-size: 12.5px;
+	cursor: pointer;
+}
+.wname {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--muted);
+}
+.wframe {
+	flex: 1;
+	width: 100%;
+	border: none;
+	background: #fff;
+}
 .info {
 	grid-area: right;
 	display: flex;

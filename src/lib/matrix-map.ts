@@ -12,6 +12,7 @@ import type {
 	Reaction,
 	Room,
 	Space,
+	Widget,
 } from "$lib/client/mock";
 
 const PALETTE = [
@@ -219,6 +220,17 @@ function mapEvent(
 		const poll = parsePoll(set, e, myId);
 		return { ...base, kind: "poll", body: poll.question, poll };
 	}
+	if (e.getType() === "m.sticker" && c.url) {
+		const info = (c.info ?? {}) as Content;
+		return {
+			...base,
+			kind: "image",
+			url: client.mxcUrlToHttp(c.url) ?? undefined,
+			name: String(c.body ?? "sticker"),
+			w: Number(info.w) || undefined,
+			h: Number(info.h) || undefined,
+		};
+	}
 	if (c.msgtype === "m.image" && c.url) {
 		return {
 			...base,
@@ -258,6 +270,7 @@ function isRenderable(e: MatrixEvent): boolean {
 	return (
 		(t === "m.room.message" ||
 			t === "m.room.encrypted" ||
+			t === "m.sticker" ||
 			POLL_START_TYPES.includes(t)) &&
 		!e.isRedacted() &&
 		(e.getContent() as Content)["m.relates_to"]?.rel_type !== "m.replace"
@@ -447,6 +460,50 @@ export function listRooms(
 		}
 	}
 	return { spaces, rooms };
+}
+
+// Room widgets (im.vector.modular.widgets state events), with the widget URL
+// templated per MSC2873 (data spread first, standard vars override + encoded).
+export function roomWidgets(client: MatrixClient, roomId: string): Widget[] {
+	const room = client.getRoom(roomId);
+	if (!room) return [];
+	const events =
+		room.currentState.getStateEvents("im.vector.modular.widgets") ?? [];
+	const userId = client.getUserId() ?? "";
+	const member = room.getMember(userId);
+	const avatarMxc = member?.getMxcAvatarUrl();
+	const vars: Content = {
+		matrix_room_id: roomId,
+		matrix_user_id: userId,
+		matrix_display_name: member?.name || userId,
+		matrix_avatar_url: avatarMxc ? (client.mxcUrlToHttp(avatarMxc) ?? "") : "",
+		"org.matrix.msc2873.client_id": "app.hoot",
+		"org.matrix.msc2873.client_theme": "dark",
+		"org.matrix.msc2873.client_language": "en",
+		"org.matrix.msc3819.matrix_device_id": client.getDeviceId() ?? "",
+		"org.matrix.msc4039.matrix_base_url": client.getHomeserverUrl(),
+	};
+	const out: Widget[] = [];
+	for (const ev of events) {
+		const c = ev.getContent() as Content;
+		if (!c.type || !c.url) continue;
+		const id = ev.getStateKey() ?? "";
+		const all = { ...(c.data ?? {}), ...vars, matrix_widget_id: id };
+		let url = String(c.url);
+		for (const [k, v] of Object.entries(all)) {
+			const pat = `$${k}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+			url = url.replace(
+				new RegExp(pat, "g"),
+				encodeURIComponent(String(v ?? "")),
+			);
+		}
+		out.push({
+			id,
+			name: String(c.name ?? c.type ?? "Widget").trim() || "Widget",
+			url,
+		});
+	}
+	return out;
 }
 
 export function meInfo(myId: string, name: string) {
