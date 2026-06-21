@@ -53,7 +53,22 @@ export type ClientData = {
 	messages: Record<string, Message[]>;
 	members: Record<string, Member[]>;
 	prevBatch: Record<string, string>;
+	receipts: Record<string, Record<string, string>>; // room -> user -> last-read event id
 };
+
+// ephemeral m.receipt -> { userId: eventId }
+function parseReceipts(r: Record<string, unknown>): Record<string, string> {
+	const out: Record<string, string> = {};
+	for (const e of (r.ephemeral as { events?: Ev[] } | undefined)?.events ??
+		[]) {
+		if (e.type !== "m.receipt") continue;
+		for (const [eventId, byType] of Object.entries(e.content ?? {})) {
+			const reads = (byType as Content)?.["m.read"] ?? {};
+			for (const userId of Object.keys(reads)) out[userId] = eventId;
+		}
+	}
+	return out;
+}
 
 async function cs(
 	method: string,
@@ -282,6 +297,7 @@ export async function loadClient({
 		messages: {},
 		members: {},
 		prevBatch: {},
+		receipts: {},
 	};
 	try {
 		const sync = await cs("GET", "/sync?timeout=0", token);
@@ -314,6 +330,7 @@ export async function loadClient({
 		const messages: Record<string, Message[]> = {};
 		const members: Record<string, Member[]> = {};
 		const prevBatch: Record<string, string> = {};
+		const receipts: Record<string, Record<string, string>> = {};
 		const lastTs: Record<string, number> = {};
 
 		for (const [rid, r] of Object.entries(join)) {
@@ -351,6 +368,7 @@ export async function loadClient({
 				| undefined;
 			const tl = timeline?.events ?? [];
 			prevBatch[rid] = timeline?.prev_batch ?? "";
+			receipts[rid] = parseReceipts(r);
 			messages[rid] = buildMessages(tl, myId);
 			const lastEv = tl.filter((e) => e.type === "m.room.message").at(-1);
 			lastTs[rid] = lastEv?.origin_server_ts ?? 0;
@@ -407,6 +425,7 @@ export async function loadClient({
 			messages,
 			members,
 			prevBatch,
+			receipts,
 		};
 	} catch (e) {
 		return { ...empty, error: String(e) };
