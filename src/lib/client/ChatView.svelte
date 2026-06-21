@@ -20,6 +20,8 @@ let {
 	onSearch,
 	onUpload,
 	onShareLocation,
+	onCreatePoll,
+	onVote,
 	mobile,
 }: {
 	room: Room | undefined;
@@ -38,6 +40,8 @@ let {
 	onSearch: (term: string) => Promise<Message[]>;
 	onUpload: (file: File) => Promise<string>;
 	onShareLocation: () => void;
+	onCreatePoll: (question: string, options: string[]) => void;
+	onVote: (pollId: string, answerId: string) => void;
 	mobile: boolean;
 } = $props();
 
@@ -257,6 +261,19 @@ function stopRec(cancel = false) {
 	mediaRec?.stop();
 }
 
+// --- poll creation ---
+let pollOpen = $state(false);
+let pollQ = $state("");
+let pollOpts = $state(["", ""]);
+function submitPoll() {
+	const opts = pollOpts.map((o) => o.trim()).filter(Boolean);
+	if (!pollQ.trim() || opts.length < 2) return;
+	onCreatePoll(pollQ.trim(), opts);
+	pollOpen = false;
+	pollQ = "";
+	pollOpts = ["", ""];
+}
+
 let lastId = "";
 $effect(() => {
 	const id = messages.at(-1)?.id ?? "";
@@ -340,6 +357,18 @@ function toggleSearch() {
 									<audio controls src={m.url}></audio>
 									{#if m.duration}<span class="adur">{Math.round(m.duration / 1000)}s</span>{/if}
 								</div>
+							{:else if m.kind === "poll" && m.poll}
+								<div class="pollbubble">
+									<div class="pollq">📊 {m.poll.question}</div>
+									{#each m.poll.options as opt (opt.id)}
+										<button class="pollopt" class:mine={opt.mine} onclick={() => m.poll && onVote(m.poll.id, opt.id)}>
+											<span class="pollbar" style="width:{m.poll.totalVotes ? (opt.votes / m.poll.totalVotes) * 100 : 0}%"></span>
+											<span class="polltext">{opt.text}</span>
+											<span class="pollcount">{opt.votes}</span>
+										</button>
+									{/each}
+									<div class="pollmeta">{m.poll.totalVotes} vote{m.poll.totalVotes === 1 ? "" : "s"}{m.poll.ended ? " · ended" : ""}</div>
+								</div>
 							{:else if m.kind === "location" && m.lat != null && m.lng != null}
 								<a class="locbubble" href="https://www.openstreetmap.org/?mlat={m.lat}&mlon={m.lng}#map=16/{m.lat}/{m.lng}" target="_blank" rel="noreferrer">
 									<span class="locpin">📍</span>
@@ -400,6 +429,21 @@ function toggleSearch() {
 			<div class="banner">↩ Replying to <b>{replyTo.sender}</b>: {replyTo.body.slice(0, 50)} <button onclick={() => (replyTo = null)}>cancel</button></div>
 		{/if}
 
+		{#if pollOpen}
+			<div class="pollcreate">
+				<input class="pollinput" placeholder="Ask a question…" bind:value={pollQ} />
+				{#each pollOpts as _opt, i (i)}
+					<input class="pollinput" placeholder="Option {i + 1}" bind:value={pollOpts[i]} />
+				{/each}
+				<div class="pollcreate-actions">
+					<button onclick={() => (pollOpts = [...pollOpts, ""])}>+ option</button>
+					<span class="spacer"></span>
+					<button onclick={() => (pollOpen = false)}>cancel</button>
+					<button class="primary" onclick={submitPoll}>Create poll</button>
+				</div>
+			</div>
+		{/if}
+
 		<div class="composer">
 			{#if recording}
 				<span class="recdot"></span>
@@ -420,6 +464,9 @@ function toggleSearch() {
 				</button>
 				<button class="hd" title="Voice message" aria-label="Record voice message" onclick={startRec}>
 					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0M12 17v4" /></svg>
+				</button>
+				<button class="hd" class:on={pollOpen} title="Create poll" aria-label="Create poll" onclick={() => (pollOpen = !pollOpen)}>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-6" /></svg>
 				</button>
 				<input
 					class="msg-input"
@@ -693,6 +740,110 @@ function toggleSearch() {
 	50% {
 		opacity: 0.35;
 	}
+}
+.pollbubble {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 4px 14px 14px 14px;
+	padding: 10px 12px;
+	min-width: 240px;
+	max-width: 320px;
+}
+.pollq {
+	font-weight: 700;
+	font-size: 14px;
+	color: var(--text);
+	margin-bottom: 8px;
+}
+.pollopt {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 7px 10px;
+	margin-bottom: 5px;
+	border: 1px solid var(--border);
+	border-radius: 9px;
+	background: var(--panel);
+	color: var(--text-dim);
+	cursor: pointer;
+	overflow: hidden;
+	text-align: left;
+}
+.pollopt:hover {
+	border-color: var(--accent);
+}
+.pollopt.mine {
+	border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.pollbar {
+	position: absolute;
+	inset: 0 auto 0 0;
+	background: color-mix(in srgb, var(--accent) 18%, transparent);
+	transition: width 0.3s;
+}
+.polltext {
+	position: relative;
+	flex: 1;
+	font-size: 13px;
+}
+.pollcount {
+	position: relative;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	color: var(--muted);
+}
+.pollmeta {
+	font-size: 11.5px;
+	color: var(--muted);
+	margin-top: 2px;
+}
+.pollcreate {
+	margin: 0 14px 8px;
+	padding: 12px;
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	background: var(--surface);
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+.pollinput {
+	height: 34px;
+	padding: 0 11px;
+	border-radius: 9px;
+	border: 1px solid var(--border);
+	background: var(--panel);
+	color: var(--text);
+	outline: none;
+	font-size: 13.5px;
+}
+.pollinput:focus {
+	border-color: var(--accent);
+}
+.pollcreate-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.pollcreate-actions .spacer {
+	flex: 1;
+}
+.pollcreate-actions button {
+	padding: 6px 12px;
+	border-radius: 8px;
+	border: 1px solid var(--border);
+	background: var(--panel);
+	color: var(--text-dim);
+	font-size: 12.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+.pollcreate-actions .primary {
+	background: var(--accent);
+	color: #0b0c10;
+	border-color: transparent;
 }
 .bubble {
 	background: var(--surface);

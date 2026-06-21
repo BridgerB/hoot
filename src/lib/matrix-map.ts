@@ -5,7 +5,14 @@ import type {
 	MatrixEvent,
 	Room as SdkRoom,
 } from "matrix-js-sdk";
-import type { Member, Message, Reaction, Room, Space } from "$lib/client/mock";
+import type {
+	Member,
+	Message,
+	PollData,
+	Reaction,
+	Room,
+	Space,
+} from "$lib/client/mock";
 
 const PALETTE = [
 	"#2f81f7",
@@ -107,6 +114,69 @@ function reactionsFor(
 	return out;
 }
 
+// --- polls (MSC3381, stable + unstable namespaces) ---
+const POLL_START_TYPES = ["m.poll.start", "org.matrix.msc3381.poll.start"];
+function pollText(o: unknown): string {
+	if (typeof o === "string") return o;
+	const oo = (o ?? {}) as Content;
+	return oo["m.text"] ?? oo["org.matrix.msc1767.text"] ?? "";
+}
+function childEvents(set: EventTimelineSet, id: string, ...types: string[]) {
+	for (const t of types) {
+		const rel = set.relations?.getChildEventsForEvent(id, "m.reference", t);
+		const events = rel?.getRelations() ?? [];
+		if (events.length) return events;
+	}
+	return [];
+}
+function parsePoll(
+	set: EventTimelineSet,
+	e: MatrixEvent,
+	myId: string,
+): PollData {
+	const c = e.getContent() as Content;
+	const ps = c["m.poll.start"] ?? c["org.matrix.msc3381.poll.start"] ?? {};
+	const question = pollText(ps.question);
+	const options = ((ps.answers ?? []) as Content[]).map((a) => ({
+		id: String(a.id),
+		text: pollText(a),
+		votes: 0,
+		mine: false,
+	}));
+	const id = e.getId() ?? "";
+	const responses = childEvents(
+		set,
+		id,
+		"m.poll.response",
+		"org.matrix.msc3381.poll.response",
+	)
+		.slice()
+		.sort((a, b) => a.getTs() - b.getTs());
+	const latest = new Map<string, string[]>();
+	for (const re of responses) {
+		if (re.isRedacted()) continue;
+		const rc = re.getContent() as Content;
+		const ans =
+			(rc["m.poll.response"] ?? rc["org.matrix.msc3381.poll.response"])
+				?.answers ?? [];
+		latest.set(re.getSender() ?? "", ans);
+	}
+	for (const [user, ans] of latest) {
+		for (const aid of ans) {
+			const opt = options.find((o) => o.id === aid);
+			if (opt) {
+				opt.votes++;
+				if (user === myId) opt.mine = true;
+			}
+		}
+	}
+	const totalVotes = [...latest.values()].filter((a) => a.length).length;
+	const ended =
+		childEvents(set, id, "m.poll.end", "org.matrix.msc3381.poll.end").length >
+		0;
+	return { id, question, ended, options, totalVotes };
+}
+
 function mapEvent(
 	client: MatrixClient,
 	room: SdkRoom,
@@ -145,6 +215,10 @@ function mapEvent(
 		replyToId: orig["m.relates_to"]?.["m.in_reply_to"]?.event_id,
 		reactions: reactionsFor(set, e.getId() ?? "", myId),
 	};
+	if (POLL_START_TYPES.includes(e.getType())) {
+		const poll = parsePoll(set, e, myId);
+		return { ...base, kind: "poll", body: poll.question, poll };
+	}
 	if (c.msgtype === "m.image" && c.url) {
 		return {
 			...base,
@@ -190,13 +264,16 @@ export function roomMessages(
 	return room
 		.getLiveTimeline()
 		.getEvents()
-		.filter(
-			(e) =>
-				(e.getType() === "m.room.message" ||
-					e.getType() === "m.room.encrypted") &&
+		.filter((e) => {
+			const t = e.getType();
+			return (
+				(t === "m.room.message" ||
+					t === "m.room.encrypted" ||
+					POLL_START_TYPES.includes(t)) &&
 				!e.isRedacted() &&
-				(e.getContent() as Content)["m.relates_to"]?.rel_type !== "m.replace",
-		)
+				(e.getContent() as Content)["m.relates_to"]?.rel_type !== "m.replace"
+			);
+		})
 		.map((e) => mapEvent(client, room, set, e, myId));
 }
 

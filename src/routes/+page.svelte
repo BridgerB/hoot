@@ -1,5 +1,7 @@
 <script lang="ts">
-import { Direction } from "matrix-js-sdk";
+import { Direction, M_POLL_KIND_DISCLOSED } from "matrix-js-sdk";
+import { PollResponseEvent } from "matrix-js-sdk/lib/extensible_events_v1/PollResponseEvent";
+import { PollStartEvent } from "matrix-js-sdk/lib/extensible_events_v1/PollStartEvent";
 import { onMount } from "svelte";
 import { goto } from "$app/navigation";
 import ChatView from "$lib/client/ChatView.svelte";
@@ -216,6 +218,28 @@ async function shareLocation() {
 		} as any,
 	);
 }
+async function createPoll(question: string, options: string[]) {
+	const c = getClient();
+	if (!c || !room) return;
+	const { type, content } = PollStartEvent.from(
+		question,
+		options,
+		M_POLL_KIND_DISCLOSED.name,
+		1,
+	).serialize();
+	// biome-ignore lint/suspicious/noExplicitAny: SDK event type/content
+	await c.sendEvent(room.id, null, type as any, content as any);
+}
+function votePoll(pollId: string, answerId: string) {
+	const c = getClient();
+	if (!c || !room) return;
+	const { type, content } = PollResponseEvent.from(
+		[answerId],
+		pollId,
+	).serialize();
+	// biome-ignore lint/suspicious/noExplicitAny: SDK event type/content
+	c.sendEvent(room.id, null, type as any, content as any);
+}
 async function startDm(userId: string) {
 	const c = getClient();
 	if (!c) return;
@@ -348,6 +372,8 @@ onMount(() => {
 			}}
 			onUpload={uploadFile}
 			onShareLocation={shareLocation}
+			onCreatePoll={createPoll}
+			onVote={votePoll}
 			{mobile}
 		/>
 
