@@ -45,6 +45,7 @@ export type Message = {
 	replyToId?: string;
 	edited?: boolean;
 	threadCount?: number; // replies in the thread rooted at this message
+	readBy?: { id: string; name: string; color: string }[]; // read-receipt avatars
 	// audio (voice message)
 	duration?: number; // ms
 	waveform?: number[];

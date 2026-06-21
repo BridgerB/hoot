@@ -295,6 +295,20 @@ export function roomMessages(
 		if (tc) m.threadCount = tc;
 		out.push(m);
 	}
+	// read receipts: tag the last message each other member has read with their avatar
+	const byId = new Map(out.map((m) => [m.id, m]));
+	for (const mem of room.getJoinedMembers()) {
+		if (mem.userId === myId) continue;
+		const readId = room.getEventReadUpTo(mem.userId);
+		const msg = readId ? byId.get(readId) : undefined;
+		if (msg) {
+			(msg.readBy ??= []).push({
+				id: mem.userId,
+				name: nameOf(room, mem.userId),
+				color: colorFor(mem.userId),
+			});
+		}
+	}
 	return out;
 }
 

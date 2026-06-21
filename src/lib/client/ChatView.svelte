@@ -411,6 +411,13 @@ function toggleSearch() {
 									{m.threadCount} {m.threadCount === 1 ? "reply" : "replies"}
 								</button>
 							{/if}
+							{#if m.readBy && m.readBy.length}
+								<div class="readby">
+									{#each m.readBy.slice(0, 5) as r (r.id)}
+										<span class="rr" style="--c:{r.color}" title="Seen by {r.name}">{r.name[0]?.toUpperCase() ?? "?"}</span>
+									{/each}
+								</div>
+							{/if}
 						</div>
 						<div class="menu">
 							{#each QUICK as emoji (emoji)}
@@ -955,6 +962,28 @@ function toggleSearch() {
 }
 .threadbtn:hover {
 	border-color: var(--accent);
+}
+.readby {
+	display: flex;
+	gap: -4px;
+	margin-top: 3px;
+	justify-content: flex-end;
+}
+.msg:not(.me) .readby {
+	justify-content: flex-start;
+}
+.rr {
+	width: 15px;
+	height: 15px;
+	border-radius: 50%;
+	display: grid;
+	place-items: center;
+	font-size: 8px;
+	font-weight: 700;
+	color: #0b0c10;
+	background: var(--c);
+	border: 1.5px solid var(--bg);
+	margin-left: -4px;
 }
 .react {
 	border: 1px solid var(--border);
