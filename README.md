@@ -19,7 +19,7 @@ Sign in on `/login` with any account on the homeserver (the default is prefilled
 
 ## What works today
 
-Login/logout · rooms, spaces (space-as-filter), DMs · live sync · **end-to-end encryption** (encrypted rooms, cross-signing, key backup, recovery key — Settings → Encryption) · **reactions** (+ emoji picker) **, replies, edit, delete** · **threads** · **polls** · **location sharing** · **voice messages** · **1:1 voice/video calls** · **moderation** (kick/ban) + start-DM from the member list · typing indicators · read receipts · image/file upload with inline preview · **full-history server search** · **desktop notifications** · markdown · load-older history · create room/space (encrypted optional) · edit display name · ⌘K search · **multi-profile** sessions (`?profile=`).
+Login/logout · rooms, spaces (space-as-filter), DMs · live sync · **end-to-end encryption** (encrypted rooms, cross-signing, key backup, recovery key — Settings → Encryption) · **reactions** (+ emoji picker) **, replies, edit, delete** · **threads** · **polls** · **location sharing** · **voice messages** · **stickers** (im.ponies packs) · **widgets** (sandboxed iframe) · **1:1 voice/video calls** · **moderation** (kick/ban) + start-DM from the member list · typing indicators · **read receipts** (seen-by avatars) · image/file upload with inline preview · **full-history server search** · **desktop notifications** (push-rule aware) · **multi-account switcher** (Settings → Accounts) · markdown · load-older history · create room/space (encrypted optional) · edit display name · ⌘K search.
 
 ## Feature comparison
 
@@ -38,20 +38,20 @@ Legend: ✅ full · ◐ partial / limited / behind a flag · ❌ none
 | Replies | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Edit messages | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Delete / redact | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Read receipts | ◐ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Read receipts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Typing indicators | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 1:1 voice / video | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Group calls | ◐ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Widgets | ❌ | ✅ | ✅ | ◐ | ❌ | ❌ | ❌ |
+| Widgets | ◐ | ✅ | ✅ | ◐ | ❌ | ❌ | ❌ |
 | File / media upload | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Message search | ✅ | ✅ | ✅ | ◐ | ✅ | ◐ | ◐ |
 | Push notifications | ◐ | ✅ | ✅ | ✅ | ✅ | ◐ | ✅ |
-| Multiple accounts | ◐ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Multiple accounts | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
 | SSO / OIDC login | ❌ | ✅ | ✅ | ◐ | ✅ | ❌ | ✅ |
 | In-app registration | ✅ | ✅ | ✅ | ✅ | ◐ | ❌ | ✅ |
 | Polls | ✅ | ✅ | ❌ | ❌ | ✅ | ◐ | ❌ |
 | Location sharing | ✅ | ✅ | ❌ | ❌ | ✅ | ◐ | ◐ |
-| Stickers / custom emoji | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Stickers / custom emoji | ◐ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Markdown | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Moderation (ban/kick) | ✅ | ◐ | ✅ | ✅ | ✅ | ✅ | ◐ |
 | Voice messages | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
@@ -70,6 +70,6 @@ Legend: ✅ full · ◐ partial / limited / behind a flag · ❌ none
 
 ### hoot's notable gaps
 
-The honest to-do list, roughly in priority order: **interactive device verification** (SAS/emoji — cross-signing + recovery-key unlock work, but no QR/emoji verify flow yet), **true Matrix push** (currently desktop `Notification`s only, no sygnal/UnifiedPush), **SSO/OIDC** login, a full **multi-account switcher** UI (session isolation exists via `?profile=`), and **stickers / custom emoji** + **widgets**.
+The honest to-do list, roughly in priority order: **interactive device verification** (SAS/emoji — cross-signing + recovery-key unlock work, but no QR/emoji verify flow yet), **true background push** (notifications are foreground-only and push-rule aware — same as Element Web / Cinny on the web — but real OS push needs a sygnal/UnifiedPush gateway), and **SSO/OIDC** login. The recently-added **widgets** (◐, displayed in a sandboxed iframe but no `matrix-widget-api` postMessage channel yet) and **stickers** (◐, render + send from im.ponies packs, but no in-app pack management or custom-emoji-in-messages) are partial.
 
 **Group calls (◐)** are *implemented* via the SDK's full-mesh `GroupCall` (no SFU — peer-to-peer over the homeserver's TURN), and the create/join/membership signalling is verified against the live server. But it's the path upstream deprecated (Element/Cinny moved to Element Call + a LiveKit SFU), it only suits a handful of participants, and the actual media connection hasn't been verified end-to-end yet. For something scalable, the real answer is hosting a LiveKit SFU and embedding Element Call.
