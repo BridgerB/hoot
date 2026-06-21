@@ -51,6 +51,7 @@ let searchBusy = $state(false);
 let replyTo = $state<Message | null>(null);
 let editing = $state<Message | null>(null);
 let pickerFor = $state<string | null>(null);
+let pickerAnchor = $state<DOMRect | null>(null);
 
 const byId = $derived(new Map(messages.map((m) => [m.id, m])));
 // loaded-timeline matches (instant) merged with full-history server results
@@ -289,12 +290,7 @@ function toggleSearch() {
 							{#each QUICK as emoji (emoji)}
 								<button title="React {emoji}" onclick={() => onReact(m.id, emoji)}>{emoji}</button>
 							{/each}
-							<span class="more">
-								<button title="More emoji" aria-label="More emoji" onclick={() => (pickerFor = pickerFor === m.id ? null : m.id)}>＋</button>
-								{#if pickerFor === m.id}
-									<EmojiPicker onPick={(e) => onReact(m.id, e)} onClose={() => (pickerFor = null)} />
-								{/if}
-							</span>
+							<button class="more" title="More emoji" aria-label="More emoji" onclick={(e) => { pickerFor = m.id; pickerAnchor = (e.currentTarget as HTMLElement).getBoundingClientRect(); }}>＋</button>
 							<button title="Reply" aria-label="Reply" onclick={() => startReply(m)}>
 								<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17l-5-5 5-5" /><path d="M4 12h11a5 5 0 0 1 5 5v1" /></svg>
 							</button>
@@ -346,6 +342,14 @@ function toggleSearch() {
 		</div>
 	{:else}
 		<div class="placeholder"><div class="owl">🦉</div><p>Pick a conversation to start hooting.</p></div>
+	{/if}
+
+	{#if pickerFor && pickerAnchor}
+		<EmojiPicker
+			anchor={pickerAnchor}
+			onPick={(em) => { if (pickerFor) onReact(pickerFor, em); }}
+			onClose={() => { pickerFor = null; pickerAnchor = null; }}
+		/>
 	{/if}
 </section>
 
