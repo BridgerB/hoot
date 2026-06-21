@@ -19,7 +19,7 @@ Sign in on `/login` with any account on the homeserver (the default is prefilled
 
 ## What works today
 
-Login/logout · rooms, spaces (space-as-filter), DMs · live sync · **end-to-end encryption** (encrypted rooms, cross-signing, key backup, recovery key — Settings → Encryption) · **reactions, replies, edit, delete** · typing indicators · read receipts · image/file upload with inline preview · **full-history server search** · **desktop notifications** · day separators · markdown · load-older history · create room/space (encrypted optional) · edit display name · ⌘K search.
+Login/logout · rooms, spaces (space-as-filter), DMs · live sync · **end-to-end encryption** (encrypted rooms, cross-signing, key backup, recovery key — Settings → Encryption) · **reactions** (+ emoji picker) **, replies, edit, delete** · **threads** · **polls** · **location sharing** · **voice messages** · **1:1 voice/video calls** · **moderation** (kick/ban) + start-DM from the member list · typing indicators · read receipts · image/file upload with inline preview · **full-history server search** · **desktop notifications** · markdown · load-older history · create room/space (encrypted optional) · edit display name · ⌘K search · **multi-profile** sessions (`?profile=`).
 
 ## Feature comparison
 
@@ -33,28 +33,28 @@ Legend: ✅ full · ◐ partial / limited / behind a flag · ❌ none
 | Cross-signing / verification | ◐ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Key backup / recovery | ✅ | ✅ | ✅ | ✅ | ✅ | ◐ | ✅ |
 | **Spaces** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Threads** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Threads** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Reactions | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Replies | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Edit messages | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Delete / redact | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Read receipts | ◐ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Typing indicators | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 1:1 voice / video | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| 1:1 voice / video | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Group calls | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Widgets | ❌ | ✅ | ✅ | ◐ | ❌ | ❌ | ❌ |
 | File / media upload | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Message search | ✅ | ✅ | ✅ | ◐ | ✅ | ◐ | ◐ |
 | Push notifications | ◐ | ✅ | ✅ | ✅ | ✅ | ◐ | ✅ |
-| Multiple accounts | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Multiple accounts | ◐ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
 | SSO / OIDC login | ❌ | ✅ | ✅ | ◐ | ✅ | ❌ | ✅ |
 | In-app registration | ✅ | ✅ | ✅ | ✅ | ◐ | ❌ | ✅ |
-| Polls | ❌ | ✅ | ❌ | ❌ | ✅ | ◐ | ❌ |
-| Location sharing | ❌ | ✅ | ❌ | ❌ | ✅ | ◐ | ◐ |
+| Polls | ✅ | ✅ | ❌ | ❌ | ✅ | ◐ | ❌ |
+| Location sharing | ✅ | ✅ | ❌ | ❌ | ✅ | ◐ | ◐ |
 | Stickers / custom emoji | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Markdown | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Moderation (ban/kick) | ❌ | ◐ | ✅ | ✅ | ✅ | ✅ | ◐ |
-| Voice messages | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Moderation (ban/kick) | ✅ | ◐ | ✅ | ✅ | ✅ | ✅ | ◐ |
+| Voice messages | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
 
 ### Project profiles
 
@@ -66,8 +66,8 @@ Legend: ✅ full · ◐ partial / limited / behind a flag · ❌ none
 | License | Unlicense | AGPL/GPL/Commercial | AGPL-3.0 | GPL-3.0+ | AGPL-3.0 | AGPL-3.0 | AGPL-3.0 |
 | Status | prototype | Active | Active | Active | Active (alpha) | Active (alpha) | Active |
 
-**Reading the table:** Element Web and Cinny are the most complete web clients (full E2EE, calls, widgets, polls). FluffyChat is the most feature-complete cross-platform option (multi-account, voice messages, location, polls). Nheko is a capable native-desktop client. SchildiChat Revenge and Tammy are newer Kotlin Multiplatform clients on the Rust/Trixnity SDKs. **hoot** is the youngest — a from-scratch SvelteKit SPA on matrix-js-sdk — but it now covers the everyday surface (reactions/replies/edits/typing/media/spaces) **plus end-to-end encryption** (cross-signing, key backup, recovery key) and full-history server search.
+**Reading the table:** Element Web and Cinny are the most complete web clients (full E2EE, calls, widgets, polls). FluffyChat is the most feature-complete cross-platform option (multi-account, voice messages, location, polls). Nheko is a capable native-desktop client. SchildiChat Revenge and Tammy are newer Kotlin Multiplatform clients on the Rust/Trixnity SDKs. **hoot** is the youngest — a from-scratch SvelteKit SPA on matrix-js-sdk — but it now covers nearly the whole everyday surface: **E2EE** (cross-signing, key backup, recovery key), **threads, polls, location, voice messages, 1:1 calls**, moderation, full-history search, and more.
 
 ### hoot's notable gaps
 
-The honest to-do list, roughly in priority order: **interactive device verification** (SAS/emoji — cross-signing + recovery-key unlock work, but there's no QR/emoji verify flow yet), threads, voice/video calls (1:1 needs coturn on the server; group needs an SFU), true Matrix push (currently desktop `Notification`s only, no sygnal/UnifiedPush), multi-account, SSO/OIDC, and the smaller polish (polls, location, voice messages, custom emoji, moderation tools).
+The honest to-do list, roughly in priority order: **interactive device verification** (SAS/emoji — cross-signing + recovery-key unlock work, but no QR/emoji verify flow yet), **group calls** (need a LiveKit SFU + Element Call widget; 1:1 works), **true Matrix push** (currently desktop `Notification`s only, no sygnal/UnifiedPush), **SSO/OIDC** login, a full **multi-account switcher** UI (session isolation exists via `?profile=`), and **stickers / custom emoji** + **widgets**.
