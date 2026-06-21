@@ -7,8 +7,10 @@ import {
 	IndexedDBStore,
 	type MatrixClient,
 	RoomEvent,
+	RoomMemberEvent,
 	SyncState,
 } from "matrix-js-sdk";
+import { resolveNames } from "./matrix-map";
 
 export type Session = {
 	baseUrl: string;
@@ -81,7 +83,6 @@ async function start(session: Session): Promise<void> {
 		localStorage: window.localStorage,
 		dbName: "hoot-sync",
 	});
-	await store.startup();
 
 	client = createClient({
 		baseUrl: session.baseUrl,
@@ -91,20 +92,37 @@ async function start(session: Session): Promise<void> {
 		store,
 		timelineSupport: true,
 	});
+	// startup() must run after the store is assigned to the client.
+	await store.startup();
 
 	client.on(ClientEvent.Sync, (state: SyncState) => {
 		if (state === SyncState.Prepared || state === SyncState.Syncing) {
 			mx.status = "ready";
 			mx.rev++;
+			void refreshNames();
 		} else if (state === SyncState.Error) {
 			mx.error = "sync error";
 		}
 	});
 	client.on(RoomEvent.Timeline, () => mx.rev++);
 	client.on(RoomEvent.Receipt, () => mx.rev++);
-	client.on(ClientEvent.Room, () => mx.rev++);
+	client.on(RoomMemberEvent.Typing, () => mx.rev++);
+	client.on(ClientEvent.Room, () => {
+		mx.rev++;
+		void refreshNames();
+	});
 
 	await client.startClient({ initialSyncLimit: 30 });
+}
+
+// strix omits displaynames from member events; fetch profiles so DMs and
+// senders show real names. Bumps rev only when something new resolves.
+async function refreshNames(): Promise<void> {
+	if (!client) return;
+	const ids = client
+		.getRooms()
+		.flatMap((r) => r.getJoinedMembers().map((m) => m.userId));
+	if (await resolveNames(client, ids)) mx.rev++;
 }
 
 export async function logout(): Promise<void> {

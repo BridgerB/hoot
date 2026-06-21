@@ -9,7 +9,13 @@ import RoomList from "$lib/client/RoomList.svelte";
 import Settings from "$lib/client/Settings.svelte";
 import SpaceRail from "$lib/client/SpaceRail.svelte";
 import { getClient, logout, mx, restore } from "$lib/matrix.svelte";
-import { listRooms, meInfo, roomMembers, roomMessages } from "$lib/matrix-map";
+import {
+	listRooms,
+	meInfo,
+	roomMembers,
+	roomMessages,
+	roomTyping,
+} from "$lib/matrix-map";
 
 let booted = $state(false);
 onMount(async () => {
@@ -71,6 +77,11 @@ const members = $derived.by(() => {
 	void mx.rev;
 	const c = getClient();
 	return room && c ? roomMembers(c, room.id, mx.userId) : [];
+});
+const typing = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return room && c ? roomTyping(c, room.id, mx.userId) : [];
 });
 const hasOlder = $derived.by(() => {
 	void mx.rev;
@@ -216,7 +227,7 @@ onMount(() => {
 			{messages}
 			{rightOpen}
 			{hasOlder}
-			typing={[]}
+			{typing}
 			onToggleRight={() => (rightOpen = !rightOpen)}
 			onBack={() => (pane = "list")}
 			onSend={send}
