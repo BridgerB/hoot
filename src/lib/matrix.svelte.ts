@@ -13,6 +13,7 @@ import {
 	SyncState,
 } from "matrix-js-sdk";
 import { decodeRecoveryKey } from "matrix-js-sdk/lib/crypto-api/recovery-key";
+import { callController } from "./call.svelte";
 import { resolveNames } from "./matrix-map";
 
 // The decoded 4S (secret storage) key, held in memory once the user sets up or
@@ -175,6 +176,7 @@ async function start(session: Session): Promise<void> {
 	});
 
 	await client.startClient({ initialSyncLimit: 30 });
+	callController.init(client);
 }
 
 // strix omits displaynames from member events; fetch profiles so DMs and

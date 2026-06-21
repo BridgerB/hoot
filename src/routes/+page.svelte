@@ -4,6 +4,8 @@ import { PollResponseEvent } from "matrix-js-sdk/lib/extensible_events_v1/PollRe
 import { PollStartEvent } from "matrix-js-sdk/lib/extensible_events_v1/PollStartEvent";
 import { onMount } from "svelte";
 import { goto } from "$app/navigation";
+import { callController } from "$lib/call.svelte";
+import CallModal from "$lib/client/CallModal.svelte";
 import ChatView from "$lib/client/ChatView.svelte";
 import { type Filter } from "$lib/client/mock";
 import RightPanel from "$lib/client/RightPanel.svelte";
@@ -240,6 +242,9 @@ function votePoll(pollId: string, answerId: string) {
 	// biome-ignore lint/suspicious/noExplicitAny: SDK event type/content
 	c.sendEvent(room.id, null, type as any, content as any);
 }
+function placeCall(video: boolean) {
+	if (room) callController.placeCall(room.id, video);
+}
 async function startDm(userId: string) {
 	const c = getClient();
 	if (!c) return;
@@ -374,6 +379,7 @@ onMount(() => {
 			onShareLocation={shareLocation}
 			onCreatePoll={createPoll}
 			onVote={votePoll}
+			onCall={placeCall}
 			{mobile}
 		/>
 
@@ -416,6 +422,8 @@ onMount(() => {
 		/>
 	{/if}
 {/if}
+
+<CallModal />
 
 <style>
 .boot {
