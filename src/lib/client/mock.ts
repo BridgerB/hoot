@@ -44,6 +44,7 @@ export type Message = {
 	reactions?: Reaction[];
 	replyToId?: string;
 	edited?: boolean;
+	threadCount?: number; // replies in the thread rooted at this message
 	// audio (voice message)
 	duration?: number; // ms
 	waveform?: number[];

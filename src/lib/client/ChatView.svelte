@@ -23,6 +23,7 @@ let {
 	onCreatePoll,
 	onVote,
 	onCall,
+	onOpenThread,
 	mobile,
 }: {
 	room: Room | undefined;
@@ -44,6 +45,7 @@ let {
 	onCreatePoll: (question: string, options: string[]) => void;
 	onVote: (pollId: string, answerId: string) => void;
 	onCall: (video: boolean) => void;
+	onOpenThread: (rootId: string) => void;
 	mobile: boolean;
 } = $props();
 
@@ -399,6 +401,12 @@ function toggleSearch() {
 									{/each}
 								</div>
 							{/if}
+							{#if m.threadCount}
+								<button class="threadbtn" onclick={() => onOpenThread(m.id)}>
+									<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z" /></svg>
+									{m.threadCount} {m.threadCount === 1 ? "reply" : "replies"}
+								</button>
+							{/if}
 						</div>
 						<div class="menu">
 							{#each QUICK as emoji (emoji)}
@@ -407,6 +415,9 @@ function toggleSearch() {
 							<button class="more" title="More emoji" aria-label="More emoji" onclick={(e) => { pickerFor = m.id; pickerAnchor = (e.currentTarget as HTMLElement).getBoundingClientRect(); }}>＋</button>
 							<button title="Reply" aria-label="Reply" onclick={() => startReply(m)}>
 								<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17l-5-5 5-5" /><path d="M4 12h11a5 5 0 0 1 5 5v1" /></svg>
+							</button>
+							<button title="Reply in thread" aria-label="Reply in thread" onclick={() => onOpenThread(m.id)}>
+								<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z" /></svg>
 							</button>
 							{#if m.me && m.kind !== "image" && m.kind !== "file"}
 								<button title="Edit" aria-label="Edit" onclick={() => startEdit(m)}>
@@ -916,6 +927,23 @@ function toggleSearch() {
 	flex-wrap: wrap;
 	gap: 5px;
 	margin-top: 2px;
+}
+.threadbtn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin-top: 4px;
+	padding: 3px 9px;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--accent-2);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+}
+.threadbtn:hover {
+	border-color: var(--accent);
 }
 .react {
 	border: 1px solid var(--border);

@@ -253,6 +253,24 @@ function mapEvent(
 	return base;
 }
 
+function isRenderable(e: MatrixEvent): boolean {
+	const t = e.getType();
+	return (
+		(t === "m.room.message" ||
+			t === "m.room.encrypted" ||
+			POLL_START_TYPES.includes(t)) &&
+		!e.isRedacted() &&
+		(e.getContent() as Content)["m.relates_to"]?.rel_type !== "m.replace"
+	);
+}
+
+// thread reply root (from the m.thread relation), computed directly off the
+// timeline so we don't depend on the SDK's Thread machinery / server caps
+function threadRoot(e: MatrixEvent): string | undefined {
+	const rel = (e.getContent() as Content)["m.relates_to"];
+	return rel?.rel_type === "m.thread" ? rel.event_id : undefined;
+}
+
 export function roomMessages(
 	client: MatrixClient,
 	roomId: string,
@@ -261,20 +279,45 @@ export function roomMessages(
 	const room = client.getRoom(roomId);
 	if (!room) return [];
 	const set = room.getUnfilteredTimelineSet();
-	return room
-		.getLiveTimeline()
-		.getEvents()
-		.filter((e) => {
-			const t = e.getType();
-			return (
-				(t === "m.room.message" ||
-					t === "m.room.encrypted" ||
-					POLL_START_TYPES.includes(t)) &&
-				!e.isRedacted() &&
-				(e.getContent() as Content)["m.relates_to"]?.rel_type !== "m.replace"
-			);
-		})
-		.map((e) => mapEvent(client, room, set, e, myId));
+	const events = room.getLiveTimeline().getEvents();
+	// count thread replies per root
+	const counts = new Map<string, number>();
+	for (const e of events) {
+		const r = threadRoot(e);
+		if (r && isRenderable(e)) counts.set(r, (counts.get(r) ?? 0) + 1);
+	}
+	const out: Message[] = [];
+	for (const e of events) {
+		if (!isRenderable(e)) continue;
+		if (threadRoot(e)) continue; // thread replies don't show in the main timeline
+		const m = mapEvent(client, room, set, e, myId);
+		const tc = counts.get(e.getId() ?? "");
+		if (tc) m.threadCount = tc;
+		out.push(m);
+	}
+	return out;
+}
+
+// the root + replies of a single thread, for the thread panel
+export function threadMessages(
+	client: MatrixClient,
+	roomId: string,
+	rootId: string,
+	myId: string,
+): Message[] {
+	const room = client.getRoom(roomId);
+	if (!room) return [];
+	const set = room.getUnfilteredTimelineSet();
+	const out: Message[] = [];
+	const rootEv = room.findEventById(rootId);
+	if (rootEv && isRenderable(rootEv))
+		out.push(mapEvent(client, room, set, rootEv, myId));
+	for (const e of room.getLiveTimeline().getEvents()) {
+		if (threadRoot(e) === rootId && isRenderable(e)) {
+			out.push(mapEvent(client, room, set, e, myId));
+		}
+	}
+	return out;
 }
 
 export function roomMembers(

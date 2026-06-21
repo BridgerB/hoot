@@ -12,6 +12,7 @@ import RightPanel from "$lib/client/RightPanel.svelte";
 import RoomList from "$lib/client/RoomList.svelte";
 import Settings from "$lib/client/Settings.svelte";
 import SpaceRail from "$lib/client/SpaceRail.svelte";
+import ThreadPanel from "$lib/client/ThreadPanel.svelte";
 import {
 	enableNotifications,
 	encryptionStatus,
@@ -30,6 +31,7 @@ import {
 	roomMessages,
 	roomTyping,
 	searchRoom,
+	threadMessages,
 } from "$lib/matrix-map";
 
 let booted = $state(false);
@@ -111,6 +113,23 @@ const typing = $derived.by(() => {
 	const c = getClient();
 	return room && c ? roomTyping(c, room.id, mx.userId) : [];
 });
+let threadRootId = $state<string | null>(null);
+const threadMsgs = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return threadRootId && room && c
+		? threadMessages(c, room.id, threadRootId, mx.userId)
+		: [];
+});
+function openThread(rootId: string) {
+	threadRootId = rootId;
+}
+function sendThreadReply(content: Record<string, unknown>) {
+	const c = getClient();
+	if (c && room && threadRootId)
+		// biome-ignore lint/suspicious/noExplicitAny: SDK thread-aware sendEvent
+		c.sendEvent(room.id, threadRootId, "m.room.message" as any, content as any);
+}
 const myPower = $derived.by(() => {
 	void mx.rev;
 	const c = getClient();
@@ -127,6 +146,7 @@ const hasOlder = $derived.by(() => {
 function openRoom(id: string) {
 	selected = id;
 	pane = "room";
+	threadRootId = null;
 	const c = getClient();
 	const tl = c?.getRoom(id)?.getLiveTimeline();
 	const last = tl?.getEvents().at(-1);
@@ -341,7 +361,7 @@ onMount(() => {
 {#if !booted || mx.status === "syncing" || mx.status === "connecting"}
 	<div class="boot"><div class="owl">🦉</div><p>Connecting…</p></div>
 {:else}
-	<div class="app" class:has-right={rightOpen && room && !mobile} class:mobile data-pane={pane}>
+	<div class="app" class:has-right={(rightOpen || threadRootId) && room && !mobile} class:mobile data-pane={pane}>
 		<SpaceRail spaces={sdk.spaces} {me} active={space} onSelect={pickSpace} onSettings={openSettings} onCreateSpace={createSpace} />
 
 		<RoomList
@@ -380,10 +400,13 @@ onMount(() => {
 			onCreatePoll={createPoll}
 			onVote={votePoll}
 			onCall={placeCall}
+			onOpenThread={openThread}
 			{mobile}
 		/>
 
-		{#if rightOpen && room && !mobile}
+		{#if threadRootId && room && !mobile}
+			<ThreadPanel messages={threadMsgs} onSend={sendThreadReply} onClose={() => (threadRootId = null)} />
+		{:else if rightOpen && room && !mobile}
 			<RightPanel
 				{room}
 				{members}
