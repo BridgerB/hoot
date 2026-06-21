@@ -41,7 +41,7 @@ Legend: ✅ full · ◐ partial / limited / behind a flag · ❌ none
 | Read receipts | ◐ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Typing indicators | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 1:1 voice / video | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Group calls | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Group calls | ◐ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Widgets | ❌ | ✅ | ✅ | ◐ | ❌ | ❌ | ❌ |
 | File / media upload | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Message search | ✅ | ✅ | ✅ | ◐ | ✅ | ◐ | ◐ |
@@ -70,4 +70,6 @@ Legend: ✅ full · ◐ partial / limited / behind a flag · ❌ none
 
 ### hoot's notable gaps
 
-The honest to-do list, roughly in priority order: **interactive device verification** (SAS/emoji — cross-signing + recovery-key unlock work, but no QR/emoji verify flow yet), **group calls** (need a LiveKit SFU + Element Call widget; 1:1 works), **true Matrix push** (currently desktop `Notification`s only, no sygnal/UnifiedPush), **SSO/OIDC** login, a full **multi-account switcher** UI (session isolation exists via `?profile=`), and **stickers / custom emoji** + **widgets**.
+The honest to-do list, roughly in priority order: **interactive device verification** (SAS/emoji — cross-signing + recovery-key unlock work, but no QR/emoji verify flow yet), **true Matrix push** (currently desktop `Notification`s only, no sygnal/UnifiedPush), **SSO/OIDC** login, a full **multi-account switcher** UI (session isolation exists via `?profile=`), and **stickers / custom emoji** + **widgets**.
+
+**Group calls (◐)** are *implemented* via the SDK's full-mesh `GroupCall` (no SFU — peer-to-peer over the homeserver's TURN), and the create/join/membership signalling is verified against the live server. But it's the path upstream deprecated (Element/Cinny moved to Element Call + a LiveKit SFU), it only suits a handful of participants, and the actual media connection hasn't been verified end-to-end yet. For something scalable, the real answer is hosting a LiveKit SFU and embedding Element Call.
