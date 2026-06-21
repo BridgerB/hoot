@@ -6,18 +6,38 @@ let {
 	server,
 	roomCount,
 	spaceCount,
+	encryption,
+	notifPermission,
 	onClose,
 	onSaveName,
+	onSetupEncryption,
+	onUnlockEncryption,
+	onEnableNotifications,
 	onLogout,
 }: {
 	me: { name: string; id: string; color: string; glyph: string };
 	server: string;
 	roomCount: number;
 	spaceCount: number;
+	encryption: {
+		crypto: boolean;
+		crossSigning: boolean;
+		secretStorage: boolean;
+		backup: string | null;
+	};
+	notifPermission: "default" | "granted" | "denied" | "unsupported";
 	onClose: () => void;
 	onSaveName: (name: string) => Promise<void> | void;
+	onSetupEncryption: (password: string) => Promise<string>;
+	onUnlockEncryption: (recoveryKey: string) => Promise<void>;
+	onEnableNotifications: () => Promise<string>;
 	onLogout: () => void;
 } = $props();
+
+let notif = $state(untrack(() => notifPermission));
+async function enableNotif() {
+	notif = (await onEnableNotifications()) as typeof notif;
+}
 
 let name = $state(untrack(() => me.name));
 let saving = $state(false);
@@ -27,6 +47,41 @@ async function save() {
 	saving = true;
 	await onSaveName(name.trim());
 	saving = false;
+}
+
+const encReady = $derived(encryption.crossSigning && encryption.secretStorage);
+let pw = $state("");
+let rkInput = $state("");
+let recoveryKeyShown = $state("");
+let unlocking = $state(false);
+let encBusy = $state(false);
+let encError = $state("");
+
+async function setupEnc() {
+	if (!pw || encBusy) return;
+	encBusy = true;
+	encError = "";
+	try {
+		recoveryKeyShown = await onSetupEncryption(pw);
+		pw = "";
+	} catch (e) {
+		encError = e instanceof Error ? e.message : String(e);
+	}
+	encBusy = false;
+}
+
+async function unlockEnc() {
+	if (!rkInput.trim() || encBusy) return;
+	encBusy = true;
+	encError = "";
+	try {
+		await onUnlockEncryption(rkInput.trim());
+		rkInput = "";
+		unlocking = false;
+	} catch (e) {
+		encError = e instanceof Error ? e.message : String(e);
+	}
+	encBusy = false;
 }
 </script>
 
@@ -63,6 +118,61 @@ async function save() {
 					</button>
 				</div>
 			</label>
+
+			<section class="enc">
+				<div class="enc-head">
+					<span class="cap">Encryption</span>
+					<span class="badge" class:ok={encReady} class:warn={!encReady}>
+						{encReady ? "🔒 On" : "⚠ Not set up"}
+					</span>
+				</div>
+
+				{#if recoveryKeyShown}
+					<div class="recovery">
+						<p>Save this recovery key somewhere safe — it's the only way to restore your encrypted messages on a new device.</p>
+						<code class="rk">{recoveryKeyShown}</code>
+						<div class="rkrow">
+							<button class="mini" onclick={() => navigator.clipboard?.writeText(recoveryKeyShown)}>Copy</button>
+							<button class="mini" onclick={() => (recoveryKeyShown = "")}>Done</button>
+						</div>
+					</div>
+				{:else if encReady}
+					<ul class="flags">
+						<li>{encryption.crossSigning ? "✅" : "—"} Cross-signing</li>
+						<li>{encryption.secretStorage ? "✅" : "—"} Secure key storage</li>
+						<li>{encryption.backup ? `✅ Key backup (v${encryption.backup})` : "— Key backup"}</li>
+					</ul>
+				{:else}
+					<p class="enc-hint">Set up encryption to enable cross-signing, secure key backup, and a recovery key.</p>
+					{#if !unlocking}
+						<div class="row">
+							<input type="password" bind:value={pw} placeholder="Account password" />
+							<button class="save" disabled={encBusy || !pw} onclick={setupEnc}>{encBusy ? "Setting up…" : "Set up"}</button>
+						</div>
+						<button class="link" onclick={() => (unlocking = true)}>I already have a recovery key</button>
+					{:else}
+						<div class="row">
+							<input bind:value={rkInput} placeholder="Recovery key (EsT… )" />
+							<button class="save" disabled={encBusy || !rkInput.trim()} onclick={unlockEnc}>{encBusy ? "Unlocking…" : "Unlock"}</button>
+						</div>
+						<button class="link" onclick={() => (unlocking = false)}>Back</button>
+					{/if}
+				{/if}
+				{#if encError}<p class="err">{encError}</p>{/if}
+			</section>
+
+			<div class="notif">
+				<span class="cap">Desktop notifications</span>
+				{#if notif === "granted"}
+					<span class="badge ok">✅ On</span>
+				{:else if notif === "denied"}
+					<span class="badge warn">Blocked in browser</span>
+				{:else if notif === "unsupported"}
+					<span class="badge warn">Unsupported</span>
+				{:else}
+					<button class="mini" onclick={enableNotif}>Enable</button>
+				{/if}
+			</div>
 
 			<dl class="meta">
 				<div><dt>Homeserver</dt><dd>{server}</dd></div>
@@ -235,5 +345,113 @@ header h2 {
 	font-size: 12px;
 	color: var(--muted);
 	text-align: center;
+}
+.enc {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px;
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	background: var(--surface);
+}
+.enc-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.cap {
+	font-size: 12px;
+	color: var(--muted);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+.badge {
+	font-size: 12px;
+	font-weight: 700;
+	padding: 2px 9px;
+	border-radius: 999px;
+}
+.badge.ok {
+	color: var(--accent-2, #3fb950);
+	background: color-mix(in srgb, #3fb950 16%, transparent);
+}
+.badge.warn {
+	color: var(--e3b341, #e3b341);
+	background: color-mix(in srgb, #e3b341 16%, transparent);
+}
+.enc-hint {
+	margin: 0;
+	font-size: 13px;
+	color: var(--text-dim);
+}
+.flags {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	font-size: 13px;
+	color: var(--text-dim);
+}
+.recovery p {
+	margin: 0 0 8px;
+	font-size: 13px;
+	color: var(--text-dim);
+}
+.rk {
+	display: block;
+	padding: 10px;
+	border-radius: 8px;
+	background: var(--panel);
+	border: 1px solid var(--border);
+	font-family: ui-monospace, monospace;
+	font-size: 13px;
+	letter-spacing: 0.5px;
+	word-spacing: 2px;
+	color: var(--text);
+	user-select: all;
+}
+.rkrow {
+	display: flex;
+	gap: 8px;
+	margin-top: 8px;
+}
+.mini {
+	padding: 5px 12px;
+	border-radius: 8px;
+	border: 1px solid var(--border);
+	background: var(--panel);
+	color: var(--text);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+}
+.mini:hover {
+	border-color: var(--accent);
+}
+.link {
+	align-self: flex-start;
+	background: none;
+	border: none;
+	color: var(--accent);
+	font-size: 12.5px;
+	cursor: pointer;
+	padding: 0;
+}
+.err {
+	margin: 0;
+	color: var(--danger);
+	font-size: 12.5px;
+}
+.notif {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 11px 12px;
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	background: var(--surface);
 }
 </style>

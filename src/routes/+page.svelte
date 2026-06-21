@@ -8,13 +8,24 @@ import RightPanel from "$lib/client/RightPanel.svelte";
 import RoomList from "$lib/client/RoomList.svelte";
 import Settings from "$lib/client/Settings.svelte";
 import SpaceRail from "$lib/client/SpaceRail.svelte";
-import { getClient, logout, mx, restore } from "$lib/matrix.svelte";
+import {
+	enableNotifications,
+	encryptionStatus,
+	getClient,
+	logout,
+	mx,
+	notificationPermission,
+	restore,
+	setupEncryption,
+	unlockEncryption,
+} from "$lib/matrix.svelte";
 import {
 	listRooms,
 	meInfo,
 	roomMembers,
 	roomMessages,
 	roomTyping,
+	searchRoom,
 } from "$lib/matrix-map";
 
 let booted = $state(false);
@@ -32,6 +43,19 @@ let filter = $state<Filter>("All");
 let query = $state("");
 let rightOpen = $state(true);
 let settingsOpen = $state(false);
+let encState = $state({
+	crypto: false,
+	crossSigning: false,
+	secretStorage: false,
+	backup: null as string | null,
+});
+async function refreshEnc() {
+	encState = await encryptionStatus();
+}
+function openSettings() {
+	settingsOpen = true;
+	void refreshEnc();
+}
 let searchFocus = $state(0);
 let mobile = $state(false);
 let pane = $state<"list" | "room">("room");
@@ -220,7 +244,7 @@ onMount(() => {
 	<div class="boot"><div class="owl">🦉</div><p>Connecting…</p></div>
 {:else}
 	<div class="app" class:has-right={rightOpen && room && !mobile} class:mobile data-pane={pane}>
-		<SpaceRail spaces={sdk.spaces} {me} active={space} onSelect={pickSpace} onSettings={() => (settingsOpen = true)} onCreateSpace={createSpace} />
+		<SpaceRail spaces={sdk.spaces} {me} active={space} onSelect={pickSpace} onSettings={openSettings} onCreateSpace={createSpace} />
 
 		<RoomList
 			title={spaceName}
@@ -249,6 +273,10 @@ onMount(() => {
 			onDelete={deleteMsg}
 			onLoadOlder={loadOlder}
 			onTyping={sendTyping}
+			onSearch={(term) => {
+				const c = getClient();
+				return c && room ? searchRoom(c, room.id, term, mx.userId) : Promise.resolve([]);
+			}}
 			{mobile}
 		/>
 
@@ -258,7 +286,27 @@ onMount(() => {
 	</div>
 
 	{#if settingsOpen}
-		<Settings {me} server={getClient()?.baseUrl ?? ""} roomCount={sdk.rooms.length} spaceCount={sdk.spaces.length} onClose={() => (settingsOpen = false)} onSaveName={saveName} onLogout={doLogout} />
+		<Settings
+			{me}
+			server={getClient()?.baseUrl ?? ""}
+			roomCount={sdk.rooms.length}
+			spaceCount={sdk.spaces.length}
+			encryption={encState}
+			notifPermission={notificationPermission()}
+			onClose={() => (settingsOpen = false)}
+			onSaveName={saveName}
+			onEnableNotifications={enableNotifications}
+			onSetupEncryption={async (pw) => {
+				const rk = await setupEncryption(pw);
+				await refreshEnc();
+				return rk;
+			}}
+			onUnlockEncryption={async (rk) => {
+				await unlockEncryption(rk);
+				await refreshEnc();
+			}}
+			onLogout={doLogout}
+		/>
 	{/if}
 {/if}
 

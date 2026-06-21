@@ -195,6 +195,31 @@ export function roomMembers(
 	}));
 }
 
+// Full-history server-side search (vs. filtering only the loaded timeline).
+export async function searchRoom(
+	client: MatrixClient,
+	roomId: string,
+	term: string,
+	myId: string,
+): Promise<Message[]> {
+	const room = client.getRoom(roomId);
+	if (!room || !term.trim()) return [];
+	const set = room.getUnfilteredTimelineSet();
+	const res = await client.searchRoomEvents({
+		term,
+		filter: { rooms: [roomId] },
+	});
+	const out: Message[] = [];
+	for (const r of res.results ?? []) {
+		const e = r.context.getEvent();
+		const t = e?.getType();
+		if (e && (t === "m.room.message" || t === "m.room.encrypted")) {
+			out.push(mapEvent(client, room, set, e, myId));
+		}
+	}
+	return out.sort((a, b) => a.tsMs - b.tsMs);
+}
+
 export function roomTyping(
 	client: MatrixClient,
 	roomId: string,

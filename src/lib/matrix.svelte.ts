@@ -138,7 +138,34 @@ async function start(session: Session): Promise<void> {
 			mx.error = "sync error";
 		}
 	});
-	client.on(RoomEvent.Timeline, () => mx.rev++);
+	client.on(
+		RoomEvent.Timeline,
+		(event, room, toStartOfTimeline, _removed, data) => {
+			mx.rev++;
+			// desktop notification for live incoming messages while unfocused
+			if (toStartOfTimeline || !data?.liveEvent) return;
+			if (
+				event.getType() !== "m.room.message" ||
+				event.getSender() === mx.userId
+			)
+				return;
+			if (
+				typeof Notification === "undefined" ||
+				Notification.permission !== "granted" ||
+				!document.hidden
+			)
+				return;
+			const sender =
+				room?.getMember(event.getSender() ?? "")?.name ??
+				event.getSender() ??
+				"";
+			const title = room?.name ? `${sender} · ${room.name}` : sender;
+			new Notification(title, {
+				body: String(event.getContent().body ?? "New message").slice(0, 140),
+				tag: room?.roomId,
+			});
+		},
+	);
 	client.on(RoomEvent.Receipt, () => mx.rev++);
 	client.on(RoomMemberEvent.Typing, () => mx.rev++);
 	client.on(MatrixEventEvent.Decrypted, () => mx.rev++);
@@ -220,6 +247,22 @@ export async function encryptionStatus(): Promise<{
 		secretStorage: await crypto.isSecretStorageReady(),
 		backup: await crypto.getActiveSessionBackupVersion(),
 	};
+}
+
+// --- desktop notifications ---
+export function notificationPermission():
+	| "default"
+	| "granted"
+	| "denied"
+	| "unsupported" {
+	if (typeof Notification === "undefined") return "unsupported";
+	return Notification.permission;
+}
+export async function enableNotifications(): Promise<
+	NotificationPermission | "unsupported"
+> {
+	if (typeof Notification === "undefined") return "unsupported";
+	return Notification.requestPermission();
 }
 
 export async function logout(): Promise<void> {

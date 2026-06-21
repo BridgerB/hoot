@@ -16,6 +16,7 @@ let {
 	onDelete,
 	onLoadOlder,
 	onTyping,
+	onSearch,
 	mobile,
 }: {
 	room: Room | undefined;
@@ -31,6 +32,7 @@ let {
 	onDelete: (id: string) => void;
 	onLoadOlder: () => void;
 	onTyping: (t: boolean) => void;
+	onSearch: (term: string) => Promise<Message[]>;
 	mobile: boolean;
 } = $props();
 
@@ -41,15 +43,37 @@ let streamEl = $state<HTMLDivElement>();
 let fileInput = $state<HTMLInputElement>();
 let searching = $state(false);
 let q = $state("");
+let serverResults = $state<Message[]>([]);
+let searchBusy = $state(false);
 let replyTo = $state<Message | null>(null);
 let editing = $state<Message | null>(null);
 
 const byId = $derived(new Map(messages.map((m) => [m.id, m])));
-const filtered = $derived(
-	q.trim()
-		? messages.filter((m) => m.body.toLowerCase().includes(q.toLowerCase()))
-		: messages,
-);
+// loaded-timeline matches (instant) merged with full-history server results
+const filtered = $derived.by(() => {
+	if (!q.trim()) return messages;
+	const local = messages.filter((m) =>
+		m.body.toLowerCase().includes(q.toLowerCase()),
+	);
+	const map = new Map(local.map((m) => [m.id, m]));
+	for (const m of serverResults) map.set(m.id, m);
+	return [...map.values()].sort((a, b) => a.tsMs - b.tsMs);
+});
+
+async function runSearch() {
+	const term = q.trim();
+	if (!term) {
+		serverResults = [];
+		return;
+	}
+	searchBusy = true;
+	try {
+		serverResults = await onSearch(term);
+	} catch {
+		serverResults = [];
+	}
+	searchBusy = false;
+}
 type Row = { sep: true; label: string } | { sep: false; m: Message };
 const rows = $derived.by((): Row[] => {
 	if (q.trim()) return filtered.map((m) => ({ sep: false, m }));
@@ -170,7 +194,10 @@ $effect(() => {
 
 function toggleSearch() {
 	searching = !searching;
-	if (!searching) q = "";
+	if (!searching) {
+		q = "";
+		serverResults = [];
+	}
 }
 </script>
 
@@ -185,8 +212,8 @@ function toggleSearch() {
 			{#if searching}
 				<svg class="sicon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
 				<!-- svelte-ignore a11y_autofocus -->
-				<input class="sinput" placeholder="Search in {room.name}" bind:value={q} autofocus />
-				<span class="scount">{q.trim() ? `${filtered.length} found` : ""}</span>
+				<input class="sinput" placeholder="Search in {room.name} — Enter for full history" bind:value={q} autofocus onkeydown={(e) => e.key === "Enter" && runSearch()} />
+				<span class="scount">{searchBusy ? "searching…" : q.trim() ? `${filtered.length} found` : ""}</span>
 				<button class="hd" title="Close search" aria-label="Close search" onclick={toggleSearch}>
 					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
 				</button>
