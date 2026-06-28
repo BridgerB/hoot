@@ -26,3 +26,8 @@ test-results
 
 # playwright MCP artifacts
 .playwright-mcp
+
+# firebase
+.firebase/
+firebase-debug.log
+*-debug.log
