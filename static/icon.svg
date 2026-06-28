@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+	<title>hoot</title>
+	<defs>
+		<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+			<stop offset="0" stop-color="#1f2a3a"/>
+			<stop offset="1" stop-color="#0d1117"/>
+		</linearGradient>
+	</defs>
+	<rect width="512" height="512" rx="112" fill="url(#bg)"/>
+	<!-- ear tufts -->
+	<path d="M150 150 L150 96 L206 138 Z" fill="#2f81f7"/>
+	<path d="M362 150 L362 96 L306 138 Z" fill="#2f81f7"/>
+	<!-- body -->
+	<circle cx="256" cy="280" r="150" fill="#2f81f7"/>
+	<!-- eyes -->
+	<circle cx="206" cy="252" r="58" fill="#0d1117"/>
+	<circle cx="306" cy="252" r="58" fill="#0d1117"/>
+	<circle cx="206" cy="252" r="34" fill="#e6edf3"/>
+	<circle cx="306" cy="252" r="34" fill="#e6edf3"/>
+	<circle cx="206" cy="256" r="15" fill="#0d1117"/>
+	<circle cx="306" cy="256" r="15" fill="#0d1117"/>
+	<!-- beak -->
+	<path d="M256 296 L238 322 L274 322 Z" fill="#e3b341"/>
+</svg>

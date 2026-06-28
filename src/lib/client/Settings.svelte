@@ -7,8 +7,38 @@ import {
 	removeAccount,
 	switchTo,
 } from "$lib/accounts.svelte";
+import {
+	disableWebPush,
+	enableWebPush,
+	isWebPushEnabled,
+	webPushSupported,
+} from "$lib/push";
 
 const current = activeProfile();
+
+let pushOn = $state(false);
+let pushBusy = $state(false);
+let pushErr = $state("");
+$effect(() => {
+	isWebPushEnabled().then((v) => (pushOn = v));
+});
+async function togglePush() {
+	pushBusy = true;
+	pushErr = "";
+	try {
+		if (pushOn) {
+			await disableWebPush();
+			pushOn = false;
+		} else {
+			await enableWebPush();
+			pushOn = true;
+		}
+	} catch (e) {
+		pushErr = e instanceof Error ? e.message : String(e);
+	} finally {
+		pushBusy = false;
+	}
+}
 
 let {
 	me,
@@ -202,6 +232,18 @@ async function unlockEnc() {
 					<button class="mini" onclick={enableNotif}>Enable</button>
 				{/if}
 			</div>
+
+			{#if webPushSupported()}
+				<div class="notif">
+					<span class="cap">Background push <span class="sub">(needs gateway)</span></span>
+					{#if pushOn}
+						<button class="mini" onclick={togglePush} disabled={pushBusy}>Disable</button>
+					{:else}
+						<button class="mini" onclick={togglePush} disabled={pushBusy}>Enable</button>
+					{/if}
+				</div>
+				{#if pushErr}<p class="err">{pushErr}</p>{/if}
+			{/if}
 
 			<dl class="meta">
 				<div><dt>Homeserver</dt><dd>{server}</dd></div>
