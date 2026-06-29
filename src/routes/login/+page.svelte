@@ -2,7 +2,7 @@
 import { goto } from "$app/navigation";
 import { login } from "$lib/matrix.svelte";
 
-let baseUrl = $state("http://129.153.101.92:8008");
+let baseUrl = $state("https://matrix.bridgerb.com");
 let user = $state("");
 let pass = $state("");
 let busy = $state(false);
