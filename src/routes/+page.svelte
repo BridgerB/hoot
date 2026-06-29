@@ -66,7 +66,7 @@ function openSettings() {
 }
 let searchFocus = $state(0);
 let mobile = $state(false);
-let pane = $state<"list" | "room">("room");
+let pane = $state<"list" | "room" | "thread" | "info">("room");
 
 // everything re-derives when the SDK bumps mx.rev
 const sdk = $derived.by(() => {
@@ -125,6 +125,20 @@ const threadMsgs = $derived.by(() => {
 });
 function openThread(rootId: string) {
 	threadRootId = rootId;
+	if (mobile) pane = "thread";
+}
+// mobile pushes thread/info as full-screen panes; desktop toggles the side panel
+function toggleInfo() {
+	if (mobile) pane = pane === "info" ? "room" : "info";
+	else rightOpen = !rightOpen;
+}
+function closeThread() {
+	if (mobile) pane = "room";
+	else threadRootId = null;
+}
+function closeInfo() {
+	if (mobile) pane = "room";
+	else rightOpen = false;
 }
 function sendThreadReply(content: Record<string, unknown>) {
 	const c = getClient();
@@ -386,6 +400,13 @@ onMount(() => {
 			selected={room?.id ?? ""}
 			onSelect={openRoom}
 			onNewRoom={newRoom}
+			{mobile}
+			spaces={sdk.spaces}
+			{me}
+			activeSpace={space}
+			onPickSpace={pickSpace}
+			onSettings={openSettings}
+			onCreateSpace={createSpace}
 		/>
 
 		<ChatView
@@ -394,7 +415,7 @@ onMount(() => {
 			{rightOpen}
 			{hasOlder}
 			{typing}
-			onToggleRight={() => (rightOpen = !rightOpen)}
+			onToggleRight={toggleInfo}
 			onBack={() => (pane = "list")}
 			onSend={send}
 			onEdit={editMsg}
@@ -419,9 +440,9 @@ onMount(() => {
 			{mobile}
 		/>
 
-		{#if threadRootId && room && !mobile}
-			<ThreadPanel messages={threadMsgs} onSend={sendThreadReply} onClose={() => (threadRootId = null)} />
-		{:else if rightOpen && room && !mobile}
+		{#if room && ((!mobile && threadRootId) || (mobile && pane === "thread" && threadRootId))}
+			<ThreadPanel messages={threadMsgs} onSend={sendThreadReply} onClose={closeThread} />
+		{:else if room && ((!mobile && rightOpen) || (mobile && pane === "info"))}
 			<RightPanel
 				{room}
 				{members}
@@ -429,7 +450,7 @@ onMount(() => {
 				{widgets}
 				myId={mx.userId}
 				{myPower}
-				onClose={() => (rightOpen = false)}
+				onClose={closeInfo}
 				onMessage={startDm}
 				onKick={kickUser}
 				onBan={banUser}
@@ -490,20 +511,30 @@ onMount(() => {
 	grid-template-areas: "rail list chat right";
 }
 .app.mobile {
-	grid-template-columns: 64px 1fr;
-	grid-template-areas: "rail main";
+	grid-template-columns: 1fr;
+	grid-template-areas: "main";
+}
+.app.mobile :global(.rail) {
+	display: none;
 }
 .app.mobile :global(.list),
-.app.mobile :global(.chat) {
+.app.mobile :global(.chat),
+.app.mobile :global(.info),
+.app.mobile :global(.thread) {
 	grid-area: main;
+	border-right: none;
 }
-.app.mobile :global(.info) {
+/* one pane at a time */
+.app.mobile[data-pane="list"] :global(.chat) {
 	display: none;
 }
 .app.mobile[data-pane="room"] :global(.list) {
 	display: none;
 }
-.app.mobile[data-pane="list"] :global(.chat) {
+.app.mobile[data-pane="thread"] :global(.list),
+.app.mobile[data-pane="thread"] :global(.chat),
+.app.mobile[data-pane="info"] :global(.list),
+.app.mobile[data-pane="info"] :global(.chat) {
 	display: none;
 }
 </style>

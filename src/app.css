@@ -84,3 +84,16 @@ a {
 ::-webkit-scrollbar-track {
 	background: transparent;
 }
+
+/* Mobile: inputs must be >=16px or iOS Safari auto-zooms on focus (the "zoom in"
+   problem). Also smooth touch scrolling + no tap-highlight flash. */
+@media (max-width: 760px) {
+	input,
+	textarea,
+	select {
+		font-size: 16px;
+	}
+	* {
+		-webkit-tap-highlight-color: transparent;
+	}
+}

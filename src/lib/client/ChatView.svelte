@@ -59,6 +59,7 @@ let {
 } = $props();
 
 let stickerOpen = $state(false);
+let moreOpen = $state(false); // mobile: collapse secondary composer actions behind ＋
 
 const QUICK = ["👍", "❤️", "😂", "🎉", "👀"];
 
@@ -504,6 +505,28 @@ function toggleSearch() {
 			</div>
 		{/if}
 
+		{#snippet extras()}
+			<button class="hd" title="Attach file" aria-label="Attach file" onclick={() => { fileInput?.click(); moreOpen = false; }}>
+				<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.05-9.19 9.2a5 5 0 0 1-7.07-7.08l9.2-9.19a3.33 3.33 0 0 1 4.71 4.71l-9.2 9.19a1.67 1.67 0 0 1-2.36-2.36l8.49-8.48" /></svg>
+			</button>
+			<button class="hd" title="Share location" aria-label="Share location" onclick={() => { onShareLocation(); moreOpen = false; }}>
+				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+			</button>
+			<button class="hd" title="Voice message" aria-label="Record voice message" onclick={() => { startRec(); moreOpen = false; }}>
+				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0M12 17v4" /></svg>
+			</button>
+			<button class="hd" class:on={pollOpen} title="Create poll" aria-label="Create poll" onclick={() => { pollOpen = !pollOpen; moreOpen = false; }}>
+				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-6" /></svg>
+			</button>
+			<button class="hd" class:on={stickerOpen} title="Sticker" aria-label="Sticker" onclick={() => { stickerOpen = !stickerOpen; moreOpen = false; }}>
+				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.5V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5.5z" /><path d="M21 12.5 12.5 21v-6a2 2 0 0 1 2-2h6z" /></svg>
+			</button>
+		{/snippet}
+
+		{#if mobile && moreOpen && !recording}
+			<div class="moretray">{@render extras()}</div>
+		{/if}
+
 		<div class="composer">
 			{#if recording}
 				<span class="recdot"></span>
@@ -516,21 +539,13 @@ function toggleSearch() {
 				</button>
 			{:else}
 				<input class="hidden" type="file" bind:this={fileInput} onchange={onPickFile} />
-				<button class="hd" title="Attach file" aria-label="Attach file" onclick={() => fileInput?.click()}>
-					<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.05-9.19 9.2a5 5 0 0 1-7.07-7.08l9.2-9.19a3.33 3.33 0 0 1 4.71 4.71l-9.2 9.19a1.67 1.67 0 0 1-2.36-2.36l8.49-8.48" /></svg>
-				</button>
-				<button class="hd" title="Share location" aria-label="Share location" onclick={onShareLocation}>
-					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-				</button>
-				<button class="hd" title="Voice message" aria-label="Record voice message" onclick={startRec}>
-					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0M12 17v4" /></svg>
-				</button>
-				<button class="hd" class:on={pollOpen} title="Create poll" aria-label="Create poll" onclick={() => (pollOpen = !pollOpen)}>
-					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-6" /></svg>
-				</button>
-				<button class="hd" class:on={stickerOpen} title="Sticker" aria-label="Sticker" onclick={() => (stickerOpen = !stickerOpen)}>
-					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.5V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5.5z" /><path d="M21 12.5 12.5 21v-6a2 2 0 0 1 2-2h6z" /></svg>
-				</button>
+				{#if mobile}
+					<button class="hd more" class:on={moreOpen} title="More" aria-label="More actions" onclick={() => (moreOpen = !moreOpen)}>
+						<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+					</button>
+				{:else}
+					{@render extras()}
+				{/if}
 				<input
 					class="msg-input"
 					bind:value={draft}
@@ -1205,5 +1220,51 @@ function toggleSearch() {
 	font-size: 56px;
 	opacity: 0.5;
 	margin-bottom: 10px;
+}
+.moretray {
+	display: flex;
+	gap: 6px;
+	padding: 8px 12px 0;
+	flex-wrap: wrap;
+}
+.moretray .hd {
+	width: 46px;
+	height: 46px;
+	background: var(--surface);
+}
+/* mobile: bigger tap targets; 16px inputs stop iOS focus-zoom */
+@media (max-width: 760px) {
+	.bar {
+		padding: 8px;
+		gap: 4px;
+	}
+	.meta {
+		min-width: 0;
+	}
+	.meta strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		display: block;
+	}
+	.actions {
+		gap: 0;
+	}
+	.hd {
+		width: 40px;
+		height: 40px;
+	}
+	.composer {
+		gap: 6px;
+		padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+	}
+	.msg-input {
+		font-size: 16px;
+		height: 46px;
+	}
+	.send {
+		width: 46px;
+		height: 46px;
+	}
 }
 </style>

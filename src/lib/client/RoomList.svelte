@@ -1,5 +1,5 @@
 <script lang="ts">
-import { FILTERS, type Filter, type Room } from "./mock";
+import { FILTERS, type Filter, type Room, type Space } from "./mock";
 
 let {
 	title,
@@ -12,6 +12,13 @@ let {
 	selected,
 	onSelect,
 	onNewRoom,
+	mobile = false,
+	spaces = [],
+	me,
+	activeSpace = "home",
+	onPickSpace = () => {},
+	onSettings = () => {},
+	onCreateSpace = () => {},
 }: {
 	title: string;
 	rooms: Room[];
@@ -23,6 +30,13 @@ let {
 	selected: string;
 	onSelect: (id: string) => void;
 	onNewRoom: () => void;
+	mobile?: boolean;
+	spaces?: Space[];
+	me?: { name: string; id: string; color: string; glyph: string };
+	activeSpace?: string;
+	onPickSpace?: (id: string) => void;
+	onSettings?: () => void;
+	onCreateSpace?: () => void;
 } = $props();
 
 let searchEl = $state<HTMLInputElement>();
@@ -32,6 +46,21 @@ $effect(() => {
 </script>
 
 <section class="list" aria-label="Conversations">
+	{#if mobile}
+		<div class="mspaces">
+			<button class="sp home" class:on={activeSpace === "home"} onclick={() => onPickSpace("home")} aria-label="Home">
+				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8" /><path d="M5 10v10h14V10" /></svg>
+			</button>
+			{#each spaces as s (s.id)}
+				<button class="sp" class:on={activeSpace === s.id} style="--c:{s.color}" onclick={() => onPickSpace(s.id)} aria-label={s.name}>{s.glyph}</button>
+			{/each}
+			<button class="sp add" onclick={onCreateSpace} aria-label="Create space">+</button>
+			<span class="spgrow"></span>
+			{#if me}
+				<button class="sp me" style="--c:{me.color}" onclick={onSettings} aria-label="Settings & account">{me.glyph}</button>
+			{/if}
+		</div>
+	{/if}
 	<header class="head">
 		<h1>{title}</h1>
 		<button class="icon" title="New conversation" aria-label="New conversation" onclick={onNewRoom}>
@@ -94,6 +123,53 @@ $effect(() => {
 	min-height: 0;
 	background: var(--panel);
 	border-right: 1px solid var(--border);
+}
+.mspaces {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 12px 4px;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+.mspaces::-webkit-scrollbar {
+	display: none;
+}
+.mspaces .sp {
+	flex: none;
+	width: 40px;
+	height: 40px;
+	border-radius: 13px;
+	border: none;
+	background: var(--surface);
+	color: var(--text);
+	font-size: 17px;
+	font-weight: 700;
+	display: grid;
+	place-items: center;
+	cursor: pointer;
+}
+.mspaces .sp {
+	color: var(--c, var(--text));
+}
+.mspaces .sp.on {
+	box-shadow: inset 0 0 0 2px var(--accent);
+}
+.mspaces .sp.home {
+	color: var(--accent-2);
+}
+.mspaces .sp.add {
+	color: var(--good);
+	font-size: 22px;
+	background: transparent;
+	border: 1px dashed var(--border-hi);
+}
+.mspaces .sp.me {
+	background: var(--c, var(--accent));
+	color: #0b0c10;
+}
+.spgrow {
+	flex: 1;
 }
 .head {
 	display: flex;
