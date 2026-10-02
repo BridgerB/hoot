@@ -1,0 +1,13 @@
+{
+	"name": "hoot-push-gateway",
+	"description": "Stateless Matrix push gateway (web-push) for hoot",
+	"private": true,
+	"main": "index.js",
+	"engines": {
+		"node": "20"
+	},
+	"dependencies": {
+		"firebase-functions": "^6.0.0",
+		"web-push": "^3.6.7"
+	}
+}

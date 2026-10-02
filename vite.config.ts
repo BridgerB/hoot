@@ -1,4 +1,5 @@
-import adapter from "@sveltejs/adapter-node";
+import inject from "@rollup/plugin-inject";
+import adapter from "@sveltejs/adapter-static";
 import { sveltekit } from "@sveltejs/kit/vite";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
@@ -11,15 +12,18 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes("node_modules") ? undefined : true,
 			},
-			adapter: adapter(),
-			typescript: {
-				config: (config) => ({
-					...config,
-					include: [...config.include, "../drizzle.config.ts"],
-				}),
-			},
+			// SPA: prerender the shell and fall back to it for all client-routed
+			// paths. There's no server — matrix-js-sdk runs in the browser.
+			adapter: adapter({ fallback: "index.html" }),
 		}),
 	],
+	// matrix-js-sdk expects the Node `global` in the browser.
+	define: { global: "globalThis" },
+	build: {
+		rollupOptions: {
+			plugins: [inject({ Buffer: ["buffer", "Buffer"] })],
+		},
+	},
 	test: {
 		expect: { requireAssertions: true },
 		projects: [

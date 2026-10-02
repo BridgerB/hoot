@@ -1,2 +1,540 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<script lang="ts">
+import { Direction, M_POLL_KIND_DISCLOSED } from "matrix-js-sdk";
+import { PollResponseEvent } from "matrix-js-sdk/lib/extensible_events_v1/PollResponseEvent";
+import { PollStartEvent } from "matrix-js-sdk/lib/extensible_events_v1/PollStartEvent";
+import { onMount } from "svelte";
+import { goto } from "$app/navigation";
+import { callController } from "$lib/call.svelte";
+import CallModal from "$lib/client/CallModal.svelte";
+import ChatView from "$lib/client/ChatView.svelte";
+import type { Filter } from "$lib/client/mock";
+import RightPanel from "$lib/client/RightPanel.svelte";
+import RoomList from "$lib/client/RoomList.svelte";
+import Settings from "$lib/client/Settings.svelte";
+import SpaceRail from "$lib/client/SpaceRail.svelte";
+import ThreadPanel from "$lib/client/ThreadPanel.svelte";
+import {
+	enableNotifications,
+	encryptionStatus,
+	getClient,
+	logout,
+	mx,
+	notificationPermission,
+	restore,
+	setupEncryption,
+	unlockEncryption,
+} from "$lib/matrix.svelte";
+import {
+	listRooms,
+	meInfo,
+	roomMembers,
+	roomMessages,
+	roomTyping,
+	roomWidgets,
+	searchRoom,
+	threadMessages,
+} from "$lib/matrix-map";
+import { getStickers, type Sticker, sendSticker } from "$lib/stickers";
+
+let booted = $state(false);
+onMount(async () => {
+	if (!(await restore())) {
+		await goto(`/login${location.search}`);
+		return;
+	}
+	booted = true;
+});
+
+let space = $state("home");
+let selected = $state("");
+let filter = $state<Filter>("All");
+let query = $state("");
+let rightOpen = $state(true);
+let settingsOpen = $state(false);
+let encState = $state({
+	crypto: false,
+	crossSigning: false,
+	secretStorage: false,
+	backup: null as string | null,
+});
+async function refreshEnc() {
+	encState = await encryptionStatus();
+}
+function openSettings() {
+	settingsOpen = true;
+	void refreshEnc();
+}
+let searchFocus = $state(0);
+let mobile = $state(false);
+let pane = $state<"list" | "room" | "thread" | "info">("room");
+
+// everything re-derives when the SDK bumps mx.rev
+const sdk = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return c ? listRooms(c, mx.userId) : { spaces: [], rooms: [] };
+});
+const myName = $derived.by(() => {
+	void mx.rev;
+	return (
+		getClient()?.getUser(mx.userId)?.displayName ??
+		mx.userId.replace(/^@/, "").split(":")[0]
+	);
+});
+const me = $derived(meInfo(mx.userId, myName));
+
+const spaceName = $derived(
+	space === "home"
+		? "Home"
+		: (sdk.spaces.find((s) => s.id === space)?.name ?? "Home"),
+);
+const visible = $derived(
+	sdk.rooms.filter((r) => {
+		if (space !== "home" && r.spaceId !== space) return false;
+		if (filter === "Unread" && r.unread === 0) return false;
+		if (filter === "DMs" && r.kind !== "dm") return false;
+		if (filter === "Groups" && r.kind !== "group") return false;
+		if (query && !r.name.toLowerCase().includes(query.toLowerCase()))
+			return false;
+		return true;
+	}),
+);
+const room = $derived(sdk.rooms.find((r) => r.id === selected) ?? sdk.rooms[0]);
+const messages = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return room && c ? roomMessages(c, room.id, mx.userId) : [];
+});
+const members = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return room && c ? roomMembers(c, room.id, mx.userId) : [];
+});
+const typing = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return room && c ? roomTyping(c, room.id, mx.userId) : [];
+});
+let threadRootId = $state<string | null>(null);
+const threadMsgs = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return threadRootId && room && c
+		? threadMessages(c, room.id, threadRootId, mx.userId)
+		: [];
+});
+function openThread(rootId: string) {
+	threadRootId = rootId;
+	if (mobile) pane = "thread";
+}
+// mobile pushes thread/info as full-screen panes; desktop toggles the side panel
+function toggleInfo() {
+	if (mobile) pane = pane === "info" ? "room" : "info";
+	else rightOpen = !rightOpen;
+}
+function closeThread() {
+	if (mobile) pane = "room";
+	else threadRootId = null;
+}
+function closeInfo() {
+	if (mobile) pane = "room";
+	else rightOpen = false;
+}
+function sendThreadReply(content: Record<string, unknown>) {
+	const c = getClient();
+	if (c && room && threadRootId)
+		// biome-ignore lint/suspicious/noExplicitAny: SDK thread-aware sendEvent
+		c.sendEvent(room.id, threadRootId, "m.room.message" as any, content as any);
+}
+const myPower = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return room && c
+		? (c.getRoom(room.id)?.getMember(mx.userId)?.powerLevel ?? 0)
+		: 0;
+});
+const hasOlder = $derived.by(() => {
+	void mx.rev;
+	const tl = room && getClient()?.getRoom(room.id)?.getLiveTimeline();
+	return !!tl?.getPaginationToken(Direction.Backward);
+});
+
+function openRoom(id: string) {
+	selected = id;
+	pane = "room";
+	threadRootId = null;
+	const c = getClient();
+	const tl = c?.getRoom(id)?.getLiveTimeline();
+	const last = tl?.getEvents().at(-1);
+	if (c && last?.getId()) c.sendReadReceipt(last);
+}
+function pickSpace(id: string) {
+	space = id;
+	pane = "list";
+}
+
+// --- actions wired straight to the SDK (local echo + sync handle the UI) ---
+function send(content: Record<string, unknown>) {
+	const c = getClient();
+	// biome-ignore lint/suspicious/noExplicitAny: SDK event content
+	if (c && room) c.sendEvent(room.id, "m.room.message" as any, content as any);
+}
+function react(id: string, key: string) {
+	const c = getClient();
+	if (!c || !room) return;
+	// toggle: if I already reacted with this key, redact it; otherwise add it
+	const existing = messages
+		.find((m) => m.id === id)
+		?.reactions?.find((r) => r.key === key);
+	if (existing?.mine && existing.myReactionId) {
+		c.redactEvent(room.id, existing.myReactionId);
+	} else {
+		// biome-ignore lint/suspicious/noExplicitAny: raw SDK send
+		(c.sendEvent as any)(room.id, "m.reaction", {
+			"m.relates_to": { rel_type: "m.annotation", event_id: id, key },
+		});
+	}
+}
+function editMsg(id: string, text: string) {
+	const c = getClient();
+	if (!c || !room) return;
+	// biome-ignore lint/suspicious/noExplicitAny: raw SDK send
+	(c.sendEvent as any)(room.id, "m.room.message", {
+		msgtype: "m.text",
+		body: `* ${text}`,
+		"m.new_content": { msgtype: "m.text", body: text },
+		"m.relates_to": { rel_type: "m.replace", event_id: id },
+	});
+}
+function deleteMsg(id: string) {
+	const c = getClient();
+	if (c && room) c.redactEvent(room.id, id);
+}
+async function uploadFile(file: File): Promise<string> {
+	const c = getClient();
+	if (!c) return "";
+	const res = await c.uploadContent(file, { name: file.name, type: file.type });
+	return res.content_uri;
+}
+async function shareLocation() {
+	const c = getClient();
+	if (!c || !room) return;
+	const pos = await new Promise<GeolocationPosition | null>((res) =>
+		navigator.geolocation.getCurrentPosition(res, () => res(null), {
+			enableHighAccuracy: true,
+			timeout: 10000,
+			maximumAge: 60000,
+		}),
+	);
+	if (!pos) return;
+	const { latitude, longitude, accuracy } = pos.coords;
+	const uri = `geo:${latitude},${longitude}${accuracy != null ? `;u=${Math.round(accuracy)}` : ""}`;
+	const ts = pos.timestamp || 0;
+	// biome-ignore lint/suspicious/noExplicitAny: raw SDK send
+	(c.sendEvent as any)(room.id, "m.room.message", {
+		body: `Location: ${uri}`,
+		msgtype: "m.location",
+		geo_uri: uri,
+		"org.matrix.msc3488.location": { uri, description: null },
+		"org.matrix.msc3488.asset": { type: "m.self" },
+		"org.matrix.msc3488.ts": ts,
+		"org.matrix.msc1767.text": `Location: ${uri}`,
+	});
+}
+async function createPoll(question: string, options: string[]) {
+	const c = getClient();
+	if (!c || !room) return;
+	const { type, content } = PollStartEvent.from(
+		question,
+		options,
+		M_POLL_KIND_DISCLOSED.name,
+		1,
+	).serialize();
+	// biome-ignore lint/suspicious/noExplicitAny: SDK event type/content
+	await c.sendEvent(room.id, null, type as any, content as any);
+}
+function votePoll(pollId: string, answerId: string) {
+	const c = getClient();
+	if (!c || !room) return;
+	const { type, content } = PollResponseEvent.from(
+		[answerId],
+		pollId,
+	).serialize();
+	// biome-ignore lint/suspicious/noExplicitAny: SDK event type/content
+	c.sendEvent(room.id, null, type as any, content as any);
+}
+function placeCall(video: boolean) {
+	if (!room) return;
+	if (room.kind === "dm") callController.placeCall(room.id, video);
+	else callController.startGroupCall(room.id, video);
+}
+function joinCall() {
+	if (room) callController.joinGroupCall(room.id);
+}
+const stickers = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	const sdkRoom = room && c?.getRoom(room.id);
+	return sdkRoom && c ? getStickers(c, sdkRoom) : [];
+});
+function onSticker(s: Sticker) {
+	const c = getClient();
+	if (c && room) sendSticker(c, room.id, s);
+}
+const widgets = $derived.by(() => {
+	void mx.rev;
+	const c = getClient();
+	return room && c ? roomWidgets(c, room.id) : [];
+});
+const groupCallActive = $derived.by(() => {
+	void mx.rev;
+	return room && getClient() ? callController.hasGroupCall(room.id) : false;
+});
+async function startDm(userId: string) {
+	const c = getClient();
+	if (!c) return;
+	const { room_id } = await c.createRoom({
+		is_direct: true,
+		invite: [userId],
+		preset: "trusted_private_chat" as never,
+	});
+	openRoom(room_id);
+}
+function kickUser(userId: string) {
+	const c = getClient();
+	if (c && room) c.kick(room.id, userId);
+}
+function banUser(userId: string) {
+	const c = getClient();
+	if (c && room) c.ban(room.id, userId);
+}
+function sendTyping(t: boolean) {
+	const c = getClient();
+	if (c && room) c.sendTyping(room.id, t, t ? 6000 : 0);
+}
+async function loadOlder() {
+	const c = getClient();
+	const tl = room && c?.getRoom(room.id)?.getLiveTimeline();
+	if (c && tl) {
+		await c.paginateEventTimeline(tl, { backwards: true, limit: 30 });
+		mx.rev++;
+	}
+}
+async function newRoom() {
+	const name = window.prompt("New room name");
+	const c = getClient();
+	if (!name?.trim() || !c) return;
+	const encrypted = mx.crypto && window.confirm("End-to-end encrypted room?");
+	const { room_id } = await c.createRoom({
+		name: name.trim(),
+		...(encrypted
+			? {
+					initial_state: [
+						{
+							type: "m.room.encryption",
+							state_key: "",
+							content: { algorithm: "m.megolm.v1.aes-sha2" },
+						},
+					],
+				}
+			: {}),
+	});
+	openRoom(room_id);
+}
+async function createSpace() {
+	const name = window.prompt("New space name");
+	const c = getClient();
+	if (name?.trim() && c) {
+		await c.createRoom({
+			name: name.trim(),
+			creation_content: { type: "m.space" },
+		});
+	}
+}
+async function saveName(name: string) {
+	await getClient()?.setDisplayName(name);
+	mx.rev++;
+}
+async function doLogout() {
+	await logout();
+	await goto("/login");
+}
+
+onMount(() => {
+	const mq = window.matchMedia("(max-width: 760px)");
+	const applyMq = () => {
+		mobile = mq.matches;
+	};
+	applyMq();
+	mq.addEventListener("change", applyMq);
+	const onKeydown = (e: KeyboardEvent) => {
+		if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+			e.preventDefault();
+			searchFocus++;
+		}
+	};
+	window.addEventListener("keydown", onKeydown);
+	return () => {
+		mq.removeEventListener("change", applyMq);
+		window.removeEventListener("keydown", onKeydown);
+	};
+});
+</script>
+
+<svelte:head><title>hoot</title></svelte:head>
+
+{#if !booted || mx.status === "syncing" || mx.status === "connecting"}
+	<div class="boot"><div class="owl">🦉</div><p>Connecting…</p></div>
+{:else}
+	<div class="app" class:has-right={(rightOpen || threadRootId) && room && !mobile} class:mobile data-pane={pane}>
+		<SpaceRail spaces={sdk.spaces} {me} active={space} onSelect={pickSpace} onSettings={openSettings} onCreateSpace={createSpace} />
+
+		<RoomList
+			title={spaceName}
+			rooms={visible}
+			{filter}
+			onFilter={(f) => (filter = f)}
+			{query}
+			onQuery={(q) => (query = q)}
+			{searchFocus}
+			selected={room?.id ?? ""}
+			onSelect={openRoom}
+			onNewRoom={newRoom}
+			{mobile}
+			spaces={sdk.spaces}
+			{me}
+			activeSpace={space}
+			onPickSpace={pickSpace}
+			onSettings={openSettings}
+			onCreateSpace={createSpace}
+		/>
+
+		<ChatView
+			{room}
+			{messages}
+			{rightOpen}
+			{hasOlder}
+			{typing}
+			onToggleRight={toggleInfo}
+			onBack={() => (pane = "list")}
+			onSend={send}
+			onEdit={editMsg}
+			onReact={react}
+			onDelete={deleteMsg}
+			onLoadOlder={loadOlder}
+			onTyping={sendTyping}
+			onSearch={(term) => {
+				const c = getClient();
+				return c && room ? searchRoom(c, room.id, term, mx.userId) : Promise.resolve([]);
+			}}
+			onUpload={uploadFile}
+			onShareLocation={shareLocation}
+			onCreatePoll={createPoll}
+			onVote={votePoll}
+			onCall={placeCall}
+			onJoinCall={joinCall}
+			groupCallActive={groupCallActive && room?.kind !== "dm"}
+			onOpenThread={openThread}
+			{stickers}
+			onSticker={onSticker}
+			{mobile}
+		/>
+
+		{#if room && ((!mobile && threadRootId) || (mobile && pane === "thread" && threadRootId))}
+			<ThreadPanel messages={threadMsgs} onSend={sendThreadReply} onClose={closeThread} />
+		{:else if room && ((!mobile && rightOpen) || (mobile && pane === "info"))}
+			<RightPanel
+				{room}
+				{members}
+				{messages}
+				{widgets}
+				myId={mx.userId}
+				{myPower}
+				onClose={closeInfo}
+				onMessage={startDm}
+				onKick={kickUser}
+				onBan={banUser}
+			/>
+		{/if}
+	</div>
+
+	{#if settingsOpen}
+		<Settings
+			{me}
+			server={getClient()?.baseUrl ?? ""}
+			roomCount={sdk.rooms.length}
+			spaceCount={sdk.spaces.length}
+			encryption={encState}
+			notifPermission={notificationPermission()}
+			onClose={() => (settingsOpen = false)}
+			onSaveName={saveName}
+			onEnableNotifications={enableNotifications}
+			onSetupEncryption={async (pw) => {
+				const rk = await setupEncryption(pw);
+				await refreshEnc();
+				return rk;
+			}}
+			onUnlockEncryption={async (rk) => {
+				await unlockEncryption(rk);
+				await refreshEnc();
+			}}
+			onLogout={doLogout}
+		/>
+	{/if}
+{/if}
+
+<CallModal />
+
+<style>
+.boot {
+	min-height: 100dvh;
+	display: grid;
+	place-content: center;
+	justify-items: center;
+	gap: 8px;
+	color: var(--muted);
+}
+.boot .owl {
+	font-size: 48px;
+	opacity: 0.6;
+}
+.app {
+	display: grid;
+	grid-template-columns: 64px 304px 1fr;
+	grid-template-areas: "rail list chat";
+	height: 100vh;
+	height: 100dvh;
+	overflow: hidden;
+}
+.app.has-right {
+	grid-template-columns: 64px 304px 1fr 312px;
+	grid-template-areas: "rail list chat right";
+}
+.app.mobile {
+	grid-template-columns: 1fr;
+	grid-template-areas: "main";
+}
+.app.mobile :global(.rail) {
+	display: none;
+}
+.app.mobile :global(.list),
+.app.mobile :global(.chat),
+.app.mobile :global(.info),
+.app.mobile :global(.thread) {
+	grid-area: main;
+	border-right: none;
+}
+/* one pane at a time */
+.app.mobile[data-pane="list"] :global(.chat) {
+	display: none;
+}
+.app.mobile[data-pane="room"] :global(.list) {
+	display: none;
+}
+.app.mobile[data-pane="thread"] :global(.list),
+.app.mobile[data-pane="thread"] :global(.chat),
+.app.mobile[data-pane="info"] :global(.list),
+.app.mobile[data-pane="info"] :global(.chat) {
+	display: none;
+}
+</style>

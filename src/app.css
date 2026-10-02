@@ -1,0 +1,99 @@
+/* hoot — global theme. Loaded once via the root layout so it's present at SSR
+   on every route (no theme flash on refresh). */
+
+:root {
+	/* surfaces — "Slate Pro" (neutral graphite) */
+	--bg: #0d1117;
+	--rail: #090c11;
+	--panel: #11151c;
+	--panel-2: #161b22;
+	--surface: #161b22;
+	--surface-2: #1c222c;
+	/* lines */
+	--border: #232a34;
+	--border-hi: #344256;
+	/* text */
+	--text: #e6edf3;
+	--text-dim: #c9d1d9;
+	--muted: #8b949e;
+	/* accents */
+	--accent: #2f81f7;
+	--accent-2: #58a6ff;
+	--good: #3fb950;
+	--warn: #d29922;
+	--danger: #f85149;
+
+	--radius: 12px;
+	color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	background: var(--bg);
+}
+
+html,
+body {
+	height: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font:
+		14px / 1.5 -apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		Roboto,
+		Inter,
+		Arial,
+		sans-serif;
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+a {
+	color: inherit;
+}
+
+::selection {
+	background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+* {
+	scrollbar-width: thin;
+	scrollbar-color: #2c313d transparent;
+}
+::-webkit-scrollbar {
+	width: 9px;
+	height: 9px;
+}
+::-webkit-scrollbar-thumb {
+	background: #2c313d;
+	border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #3a4150;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+/* Mobile: inputs must be >=16px or iOS Safari auto-zooms on focus (the "zoom in"
+   problem). Also smooth touch scrolling + no tap-highlight flash. */
+@media (max-width: 760px) {
+	input,
+	textarea,
+	select {
+		font-size: 16px;
+	}
+	* {
+		-webkit-tap-highlight-color: transparent;
+	}
+}
